@@ -37,8 +37,14 @@ private:
     std::vector<Bouton> boutons_;
     int motifSelectionne_ = -1;  // -1 : outil cellule, sinon indice dans motifs_
     int nombreIterationsMaximum_ = 0;
+    int budgetInitial_ = 0;
     bool enCours_ = true;
     bool limiteAtteinte_ = false;
+    bool glisserActif_ = false;
+    bool etatGlisser_ = false;
+    int derniereLigneGlisser_ = -1;
+    int derniereColonneGlisser_ = -1;
+    std::string message_;
     float statutY_ = 0.0f;
     float hauteurInterface_ = 0.0f;
 
@@ -50,10 +56,13 @@ private:
     void traiterTouche(sf::Keyboard::Key touche, Jeu& jeu);
     bool traiterClicBouton(sf::Vector2f position, Jeu& jeu);
     void traiterClicGrille(sf::Vector2f position, Jeu& jeu, float tailleCellule);
+    void traiterGlisser(sf::Vector2f position, Jeu& jeu, float tailleCellule);
+    void prolongerBudgetSiLimite(const Jeu& jeu);
     void basculerLecture(const Jeu& jeu);
     void avancer(Jeu& jeu);
     void reinitialiser(Jeu& jeu);
     void effacer(Jeu& jeu);
     void changerDelai(int variation);
+    void selectionnerCellule();
     void selectionnerMotif(int indice);
 };

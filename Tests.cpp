@@ -3,6 +3,7 @@
 #include "Jeu.h"
 #include "Motif.h"
 #include "Regle.h"
+#include "TestsFichiers.h"
 
 #include <iostream>
 #include <stdexcept>
@@ -69,7 +70,7 @@ int Tests::executer() {
         reussite = false;
     }
     if (!verifierGrille(blocStable, blocStable, 5)) {
-        std::cerr << "Échec : le bloc stable après cinq itérations.\n";
+        std::cerr << "Échec : le bloc reste stable lors d'une demande de cinq itérations.\n";
         reussite = false;
     }
 
@@ -87,9 +88,9 @@ int Tests::executer() {
         verifier(motifs[2].nom() == "Bloc" && motifs[2].lignes() == 2 &&
                      motifs[2].colonnes() == 2 && compterVivantes(motifs[2]) == 4,
                  "le bloc est un motif 2x2 de quatre cellules", reussite);
-        verifier(motifs[3].nom() == "Crapaud" && motifs[3].lignes() == 4 &&
+        verifier(motifs[3].nom() == "Crapaud" && motifs[3].lignes() == 2 &&
                      motifs[3].colonnes() == 4 && compterVivantes(motifs[3]) == 6,
-                 "le crapaud est un motif 4x4 de six cellules", reussite);
+                 "le crapaud est un motif 2x4 de six cellules", reussite);
     }
 
     {
@@ -171,6 +172,53 @@ int Tests::executer() {
                  reussite);
     }
 
+    {
+        Jeu jeu(grilleVide(4, 4), regle);
+        jeu.iterer();
+        verifier(jeu.estStable(), "une grille vide est stable avant modification", reussite);
+
+        jeu.modifierCellule(1, 1, true);
+        verifier(jeu.grille().estVivante(1, 1),
+                 "modifierCellule rend une cellule vivante", reussite);
+        verifier(!jeu.estStable(), "modifierCellule lève la stabilité", reussite);
+
+        jeu.iterer();
+        verifier(!jeu.grille().estVivante(1, 1),
+                 "une cellule isolée posée par modifierCellule meurt", reussite);
+        verifier(jeu.iteration() == 2,
+                 "le compteur continue après modifierCellule", reussite);
+
+        bool refusee = false;
+        try {
+            jeu.modifierCellule(-1, 0, true);
+        } catch (const std::out_of_range&) {
+            refusee = true;
+        }
+        verifier(refusee, "une modification hors grille est refusée", reussite);
+        verifier(!jeu.grille().estVivante(0, 2),
+                 "une modification invalide ne modifie pas la case (0,2)", reussite);
+    }
+
+    if (motifs.size() == 4) {
+        Jeu petit(grilleVide(4, 4), regle);
+        verifier(petit.placerMotif(motifs[3], 1, 2),
+                 "un crapaud 2x4 tient dans une grille 4x4", reussite);
+
+        Jeu jeu(grilleVide(8, 8), regle);
+        verifier(jeu.placerMotif(motifs[3], 3, 4),
+                 "un crapaud 2x4 tient au centre d'une grille 8x8", reussite);
+        const Grille crapaudInitial = jeu.grille();
+
+        jeu.iterer();
+        verifier(!jeu.estStable(), "le crapaud oscille après une itération", reussite);
+        verifier(!jeu.grille().aMemesEtats(crapaudInitial),
+                 "le crapaud change de forme après une itération", reussite);
+
+        jeu.iterer();
+        verifier(jeu.grille().aMemesEtats(crapaudInitial),
+                 "le crapaud retrouve sa forme après deux itérations", reussite);
+    }
+
     if (motifs.size() == 4) {
         Jeu jeu(grilleVide(5, 5), regle);
         verifier(!jeu.placerMotif(motifs[0], 0, 0),
@@ -240,6 +288,10 @@ int Tests::executer() {
         verifier(jeu.grille().estVivante(1, 1) && jeu.grille().estVivante(1, 2) &&
                      jeu.grille().estVivante(2, 1) && jeu.grille().estVivante(2, 2),
                  "le bloc placé conserve ses quatre cellules", reussite);
+    }
+
+    if (!TestsFichiers::executer()) {
+        reussite = false;
     }
 
     if (reussite) {

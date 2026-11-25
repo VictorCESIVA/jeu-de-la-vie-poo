@@ -12,14 +12,15 @@ classDiagram
     class Jeu {
         -grille_ : Grille
         -initiale_ : Grille
-        -regle_ : Regle
+        -regle_ : const Regle&
         -iteration_ : int
         -stable_ : bool
         +iterer() void
         +iteration() int
         +estStable() bool
-        +grille() Grille
+        +grille() const Grille&
         +basculerCellule(ligne, colonne) void
+        +modifierCellule(ligne, colonne, vivante) void
         +effacer() void
         +reinitialiser() void
         +placerMotif(motif, ligneCentre, colonneCentre) bool
@@ -83,10 +84,20 @@ classDiagram
     class ModeGraphique {
         -delaiMs_ : int
         -motifs_ : vector
+        -police_ : sf::Font
         -boutons_ : vector
         -motifSelectionne_ : int
+        -nombreIterationsMaximum_ : int
+        -budgetInitial_ : int
         -enCours_ : bool
         -limiteAtteinte_ : bool
+        -glisserActif_ : bool
+        -etatGlisser_ : bool
+        -derniereLigneGlisser_ : int
+        -derniereColonneGlisser_ : int
+        -message_ : string
+        -statutY_ : float
+        -hauteurInterface_ : float
         +ModeGraphique(delaiMs)
         +executer(jeu, iterationsMaximum) void
         -creerInterface(largeurGrille) void
@@ -95,16 +106,22 @@ classDiagram
         -traiterTouche(touche, jeu) void
         -traiterClicBouton(position, jeu) bool
         -traiterClicGrille(position, jeu, tailleCellule) void
+        -traiterGlisser(position, jeu, tailleCellule) void
+        -prolongerBudgetSiLimite(jeu) void
         -basculerLecture(jeu) void
         -avancer(jeu) void
         -reinitialiser(jeu) void
         -effacer(jeu) void
         -changerDelai(variation) void
+        -selectionnerCellule() void
         -selectionnerMotif(indice) void
     }
     class Tests {
         -verifierGrille(initiale, attendue, iterations)$ bool
         +executer()$ int
+    }
+    class TestsFichiers {
+        +executer()$ bool
     }
 
     Jeu "1" *-- "2" Grille : courante et initiale
@@ -121,7 +138,20 @@ classDiagram
     ModeGraphique ..> Jeu : pilote et édite
     ModeGraphique "1" *-- "0..*" Motif : propose
     Tests ..> Jeu : vérifie
+    Tests ..> TestsFichiers : appelle
+    TestsFichiers ..> FichierGrille : teste
+    TestsFichiers ..> ModeConsole : teste
 ```
+
+Notes de cohérence :
+
+- `Jeu::regle_` est une référence non propriétaire `const Regle&` ; la règle doit vivre au moins aussi longtemps que le `Jeu`.
+- `ModeGraphique` mémorise le budget initial. Une édition réussie après la limite efface `limiteAtteinte_` et fixe `nombreIterationsMaximum_` à `iteration + budgetInitial_`, sans remettre le compteur à zéro.
+- `R` réinitialise en pause ; Reset et Clear remettent `nombreIterationsMaximum_` à `budgetInitial_`.
+- Le glisser gauche réutilise `etatGlisser_` et `Jeu::modifierCellule` ; le message `Motif hors limites` est porté par `message_`.
+- La répétition automatique du clavier est désactivée sur la fenêtre SFML.
+- `Motif::predefinis` fournit Planeur 3x3, Clignotant 3x3, Bloc 2x2 et Crapaud 2x4.
+- `ModeConsole::executer` supprime au préalable, dans le dossier de sortie, uniquement les fichiers réguliers nommés exactement `iteration_<chiffres>.txt` ; les autres fichiers et dossiers sont conservés.
 
 ## Diagramme d'activité
 
@@ -133,7 +163,7 @@ flowchart TD
     D --> Z([Fin])
     C -- Oui --> E[Créer la grille, les cellules et le jeu]
     E --> F{Mode choisi}
-    F -- Console --> G[Créer le dossier et écrire l'itération 0]
+    F -- Console --> G[Créer le dossier, nettoyer les anciens iteration_N.txt ciblés et écrire l'itération 0]
     G --> I{Itérations restantes et grille non stable ?}
     I -- Non --> Z
     I -- Oui --> J[Compter les voisines et calculer tous les états futurs]
@@ -144,11 +174,13 @@ flowchart TD
     F -- Graphique --> H[Ouvrir la fenêtre et créer la barre latérale]
     H --> N{Fenêtre ouverte ?}
     N -- Non --> Z
-    N -- Oui --> O[Traiter lecture, pause, pas à pas, vitesse et édition]
-    O --> P{Cellule, effacement ou motif valide ?}
-    P -- Oui --> Q[Modifier la grille et mettre en pause]
-    P -- Non --> R{Lecture active, délai écoulé, non stable et limite non atteinte ?}
+    N -- Oui --> O[Traiter lecture, pause, pas à pas, vitesse, reset en pause et édition clic/glisser]
+    O --> P{Édition de cellule, glisser, effacement ou motif valide ?}
+    P -- Édition valide --> Q[Modifier la grille, mettre en pause et prolonger le budget si la limite était atteinte]
+    P -- Motif refusé --> W[Afficher Motif hors limites]
+    P -- Aucune édition --> R{Lecture active, délai écoulé, non stable et limite non atteinte ?}
     Q --> R
+    W --> R
     R -- Non --> V[Afficher la grille et l'interface]
     R -- Oui --> S[Calculer et appliquer une itération]
     S --> T{Stable ou limite atteinte ?}
@@ -179,6 +211,7 @@ sequenceDiagram
     Fichier-->>Main: grille initiale
     Main->>Jeu: créer(grille, règle)
     Main->>Console: executer(jeu, chemin, limite)
+    Console->>Console: supprimer les anciens iteration_N.txt ciblés
     Console->>Fichier: ecrire(itération 0)
     loop Tant que la limite n'est pas atteinte et que la grille évolue
         Console->>Jeu: iterer()

@@ -16,6 +16,24 @@ const char* CHEMIN_POLICE = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 sf::String texteUtf8(const std::string& texte) {
     return sf::String::fromUtf8(texte.begin(), texte.end());
 }
+
+bool celluleSousSouris(const Jeu& jeu, sf::Vector2f position,
+                       float tailleCellule, int& ligne, int& colonne) {
+    if (tailleCellule <= 0.0f || position.x < 0.0f || position.y < 0.0f) {
+        return false;
+    }
+
+    const int colonneCandidate = static_cast<int>(position.x / tailleCellule);
+    const int ligneCandidate = static_cast<int>(position.y / tailleCellule);
+    if (ligneCandidate >= jeu.grille().lignes() ||
+        colonneCandidate >= jeu.grille().colonnes()) {
+        return false;
+    }
+
+    ligne = ligneCandidate;
+    colonne = colonneCandidate;
+    return true;
+}
 }
 
 ModeGraphique::ModeGraphique(int delaiMs)
@@ -51,7 +69,7 @@ void ModeGraphique::creerInterface(float largeurGrille) {
     }
 
     statutY_ = y;
-    hauteurInterface_ = statutY_ + 4.0f * HAUTEUR_LIGNE_STATUT + MARGE;
+    hauteurInterface_ = statutY_ + 5.0f * HAUTEUR_LIGNE_STATUT + MARGE;
 }
 
 void ModeGraphique::ajouterBouton(const std::string& libelle, Commande commande,
@@ -130,24 +148,37 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
         "État : " + etat,
         "Itération : " + std::to_string(jeu.iteration()),
         "Délai : " + std::to_string(delaiMs_) + " ms",
-        "Outil : " + outil};
+        "Outil : " + outil,
+        message_};
 
     sf::Text texte;
     texte.setFont(police_);
     texte.setCharacterSize(14);
-    texte.setFillColor(sf::Color(220, 220, 220));
     float y = statutY_;
+    int indiceLigne = 0;
     for (const std::string& ligne : lignes) {
+        texte.setFillColor(indiceLigne == 4 && !message_.empty()
+                               ? sf::Color(255, 180, 90)
+                               : sf::Color(220, 220, 220));
         texte.setString(texteUtf8(ligne));
         texte.setPosition(largeurGrille + MARGE, y);
         fenetre.draw(texte);
         y += HAUTEUR_LIGNE_STATUT;
+        ++indiceLigne;
     }
 
     fenetre.setTitle("Jeu de la vie | " + etat + " | Iteration " +
                      std::to_string(jeu.iteration()) + " | Delai " +
                      std::to_string(delaiMs_) + " ms");
     fenetre.display();
+}
+
+void ModeGraphique::prolongerBudgetSiLimite(const Jeu& jeu) {
+    if (!limiteAtteinte_) {
+        return;
+    }
+    limiteAtteinte_ = false;
+    nombreIterationsMaximum_ = jeu.iteration() + budgetInitial_;
 }
 
 void ModeGraphique::basculerLecture(const Jeu& jeu) {
@@ -170,18 +201,30 @@ void ModeGraphique::avancer(Jeu& jeu) {
 
 void ModeGraphique::reinitialiser(Jeu& jeu) {
     jeu.reinitialiser();
-    enCours_ = true;
+    enCours_ = false;
     limiteAtteinte_ = false;
+    nombreIterationsMaximum_ = budgetInitial_;
+    glisserActif_ = false;
+    message_.clear();
 }
 
 void ModeGraphique::effacer(Jeu& jeu) {
     jeu.effacer();
     enCours_ = false;
     limiteAtteinte_ = false;
+    nombreIterationsMaximum_ = budgetInitial_;
+    glisserActif_ = false;
+    message_.clear();
 }
 
 void ModeGraphique::changerDelai(int variation) {
     delaiMs_ = std::min(2000, std::max(10, delaiMs_ + variation));
+}
+
+void ModeGraphique::selectionnerCellule() {
+    motifSelectionne_ = -1;
+    glisserActif_ = false;
+    message_.clear();
 }
 
 void ModeGraphique::selectionnerMotif(int indice) {
@@ -189,6 +232,8 @@ void ModeGraphique::selectionnerMotif(int indice) {
         return;
     }
     motifSelectionne_ = indice;
+    glisserActif_ = false;
+    message_.clear();
 }
 
 void ModeGraphique::traiterTouche(sf::Keyboard::Key touche, Jeu& jeu) {
@@ -216,7 +261,7 @@ void ModeGraphique::traiterTouche(sf::Keyboard::Key touche, Jeu& jeu) {
         break;
     case sf::Keyboard::Num0:
     case sf::Keyboard::Numpad0:
-        motifSelectionne_ = -1;
+        selectionnerCellule();
         break;
     case sf::Keyboard::Num1:
     case sf::Keyboard::Numpad1:
@@ -265,7 +310,7 @@ bool ModeGraphique::traiterClicBouton(sf::Vector2f position, Jeu& jeu) {
             effacer(jeu);
             break;
         case Commande::Cellule:
-            motifSelectionne_ = -1;
+            selectionnerCellule();
             break;
         case Commande::Motif:
             selectionnerMotif(bouton.indiceMotif);
@@ -279,32 +324,61 @@ bool ModeGraphique::traiterClicBouton(sf::Vector2f position, Jeu& jeu) {
 
 void ModeGraphique::traiterClicGrille(sf::Vector2f position, Jeu& jeu,
                                       float tailleCellule) {
-    if (position.x < 0.0f || position.y < 0.0f) {
-        return;
-    }
-
-    const int colonne = static_cast<int>(position.x / tailleCellule);
-    const int ligne = static_cast<int>(position.y / tailleCellule);
-    if (ligne >= jeu.grille().lignes() || colonne >= jeu.grille().colonnes()) {
+    int ligne = 0;
+    int colonne = 0;
+    if (!celluleSousSouris(jeu, position, tailleCellule, ligne, colonne)) {
         return;
     }
 
     bool modifie = false;
     if (motifSelectionne_ < 0) {
         jeu.basculerCellule(ligne, colonne);
+        etatGlisser_ = jeu.grille().estVivante(ligne, colonne);
+        derniereLigneGlisser_ = ligne;
+        derniereColonneGlisser_ = colonne;
+        glisserActif_ = true;
         modifie = true;
     } else {
+        glisserActif_ = false;
         modifie = jeu.placerMotif(motifs_[static_cast<std::size_t>(motifSelectionne_)],
                                   ligne, colonne);
+        if (!modifie) {
+            message_ = "Motif hors limites";
+        }
     }
 
     if (modifie) {
         enCours_ = false;
+        message_.clear();
+        prolongerBudgetSiLimite(jeu);
     }
+}
+
+void ModeGraphique::traiterGlisser(sf::Vector2f position, Jeu& jeu,
+                                   float tailleCellule) {
+    int ligne = 0;
+    int colonne = 0;
+    if (!celluleSousSouris(jeu, position, tailleCellule, ligne, colonne)) {
+        derniereLigneGlisser_ = -1;
+        derniereColonneGlisser_ = -1;
+        return;
+    }
+
+    if (ligne == derniereLigneGlisser_ && colonne == derniereColonneGlisser_) {
+        return;
+    }
+
+    jeu.modifierCellule(ligne, colonne, etatGlisser_);
+    derniereLigneGlisser_ = ligne;
+    derniereColonneGlisser_ = colonne;
+    enCours_ = false;
+    message_.clear();
+    prolongerBudgetSiLimite(jeu);
 }
 
 void ModeGraphique::executer(Jeu& jeu, int nombreIterationsMaximum) {
     nombreIterationsMaximum_ = nombreIterationsMaximum;
+    budgetInitial_ = nombreIterationsMaximum;
 
     const float tailleCellule = std::max(
         4.0f, std::min(20.0f, 800.0f / std::max(jeu.grille().lignes(),
@@ -321,6 +395,7 @@ void ModeGraphique::executer(Jeu& jeu, int nombreIterationsMaximum) {
     sf::RenderWindow fenetre(sf::VideoMode(largeur, hauteur), "Jeu de la vie",
                              sf::Style::Titlebar | sf::Style::Close);
     fenetre.setFramerateLimit(60);
+    fenetre.setKeyRepeatEnabled(false);
     sf::Clock horloge;
 
     while (fenetre.isOpen()) {
@@ -335,10 +410,31 @@ void ModeGraphique::executer(Jeu& jeu, int nombreIterationsMaximum) {
                 const sf::Vector2f position(
                     static_cast<float>(evenement.mouseButton.x),
                     static_cast<float>(evenement.mouseButton.y));
+                glisserActif_ = false;
                 if (!traiterClicBouton(position, jeu)) {
                     traiterClicGrille(position, jeu, tailleCellule);
                 }
+            } else if (evenement.type == sf::Event::MouseMoved &&
+                       glisserActif_) {
+                if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+                    const sf::Vector2f position(
+                        static_cast<float>(evenement.mouseMove.x),
+                        static_cast<float>(evenement.mouseMove.y));
+                    traiterGlisser(position, jeu, tailleCellule);
+                } else {
+                    glisserActif_ = false;
+                }
+            } else if (evenement.type == sf::Event::MouseButtonReleased &&
+                       evenement.mouseButton.button == sf::Mouse::Left) {
+                glisserActif_ = false;
+            } else if (evenement.type == sf::Event::MouseLeft ||
+                       evenement.type == sf::Event::LostFocus) {
+                glisserActif_ = false;
             }
+        }
+
+        if (glisserActif_ && !sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+            glisserActif_ = false;
         }
 
         if (enCours_ && !jeu.estStable() &&

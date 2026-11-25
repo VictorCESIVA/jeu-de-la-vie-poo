@@ -20,6 +20,7 @@ public:
     const Grille& grille() const;
 
     void basculerCellule(int ligne, int colonne);
+    void modifierCellule(int ligne, int colonne, bool vivante);
     void effacer();
     void reinitialiser();
     bool placerMotif(const Motif& motif, int ligneCentre, int colonneCentre);

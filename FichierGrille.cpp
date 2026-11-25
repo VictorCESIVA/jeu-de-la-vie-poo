@@ -1,8 +1,11 @@
 #include "FichierGrille.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <system_error>
 #include <vector>
 
 Grille FichierGrille::lire(const std::string& chemin) {
@@ -19,12 +22,29 @@ Grille FichierGrille::lire(const std::string& chemin) {
 
     const std::size_t nombreCellules = static_cast<std::size_t>(lignes) *
                                        static_cast<std::size_t>(colonnes);
+
+    std::error_code erreurTaille;
+    const std::uintmax_t tailleFichier =
+        std::filesystem::file_size(std::filesystem::path(chemin), erreurTaille);
+    if (erreurTaille) {
+        throw std::runtime_error("Impossible de déterminer la taille du fichier : " + chemin);
+    }
+    if (tailleFichier < static_cast<std::uintmax_t>(nombreCellules)) {
+        throw std::runtime_error(
+            "Matrice incomplète : le fichier est trop petit pour contenir les cellules annoncées dans : " +
+            chemin);
+    }
+
     std::vector<int> etats;
     etats.reserve(nombreCellules);
 
     for (std::size_t indice = 0; indice < nombreCellules; ++indice) {
         int etat = 0;
-        if (!(fichier >> etat) || (etat != 0 && etat != 1)) {
+        if (!(fichier >> etat)) {
+            throw std::runtime_error(
+                "La matrice est incomplète ou contient un entier illisible dans : " + chemin);
+        }
+        if (etat != 0 && etat != 1) {
             throw std::runtime_error("La matrice doit contenir uniquement des 0 et des 1.");
         }
         etats.push_back(etat);

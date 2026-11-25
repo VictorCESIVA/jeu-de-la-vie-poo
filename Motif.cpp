@@ -68,10 +68,8 @@ std::vector<Motif> Motif::predefinis() {
             {1, 1}
         }),
         Motif("Crapaud", {
-            {0, 0, 0, 0},
             {0, 1, 1, 1},
-            {1, 1, 1, 0},
-            {0, 0, 0, 0}
+            {1, 1, 1, 0}
         })
     };
 }

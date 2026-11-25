@@ -28,7 +28,11 @@ const Grille& Jeu::grille() const {
 }
 
 void Jeu::basculerCellule(int ligne, int colonne) {
-    grille_.basculerCellule(ligne, colonne);
+    modifierCellule(ligne, colonne, !grille_.estVivante(ligne, colonne));
+}
+
+void Jeu::modifierCellule(int ligne, int colonne, bool vivante) {
+    grille_.modifierCellule(ligne, colonne, vivante);
     stable_ = false;
 }
 
