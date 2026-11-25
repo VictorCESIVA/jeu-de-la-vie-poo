@@ -21,6 +21,8 @@ public:
 
     void basculerCellule(int ligne, int colonne);
     void modifierCellule(int ligne, int colonne, bool vivante);
+    void definirTorique(bool torique);
+    void basculerObstacle(int ligne, int colonne);
     void effacer();
     void reinitialiser();
     bool placerMotif(const Motif& motif, int ligneCentre, int colonneCentre);

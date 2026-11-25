@@ -4,6 +4,7 @@
 #include "Motif.h"
 #include "Regle.h"
 #include "TestsFichiers.h"
+#include "TestsExtensions.h"
 
 #include <iostream>
 #include <stdexcept>
@@ -248,6 +249,41 @@ int Tests::executer() {
                  "un motif placé évolue selon les règles", reussite);
     }
 
+    {
+        Cellule originale(true);
+        originale.definirObstacle(true);
+        Cellule copie(originale);
+        Cellule affectee(false);
+        affectee = originale;
+        verifier(copie.estVivante() && copie.estObstacle(),
+                 "la copie conserve état et obstacle", reussite);
+        verifier(affectee.estVivante() && affectee.estObstacle(),
+                 "l'affectation conserve état et obstacle", reussite);
+
+        originale.changerEtat(false);
+        originale.definirObstacle(false);
+        verifier(copie.estVivante() && copie.estObstacle(),
+                 "la copie garde un état indépendant", reussite);
+        verifier(affectee.estVivante() && affectee.estObstacle(),
+                 "l'affectation garde un état indépendant", reussite);
+
+        Grille grille(3, 3, {1, 0, 0,
+                             0, 0, 0,
+                             0, 0, 0});
+        grille.definirTorique(true);
+        grille.modifierObstacle(0, 0, true);
+        const Grille copieGrille(grille);
+        verifier(copieGrille.estTorique() && copieGrille.estVivante(0, 0) &&
+                     copieGrille.estObstacle(0, 0),
+                 "la copie de grille conserve tore, état et obstacle", reussite);
+
+        grille.effacer();
+        verifier(!grille.estVivante(0, 0) && !grille.estObstacle(0, 0),
+                 "effacer tue les cellules et retire les obstacles", reussite);
+        verifier(copieGrille.estVivante(0, 0) && copieGrille.estObstacle(0, 0),
+                 "la copie de grille reste indépendante", reussite);
+    }
+
     if (motifs.size() == 4) {
         Jeu jeu(grilleVide(10, 10), regle);
         verifier(jeu.placerMotif(motifs[0], 3, 3),
@@ -291,6 +327,10 @@ int Tests::executer() {
     }
 
     if (!TestsFichiers::executer()) {
+        reussite = false;
+    }
+
+    if (!TestsExtensions::executer()) {
         reussite = false;
     }
 

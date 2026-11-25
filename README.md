@@ -27,7 +27,7 @@ L'exécutable produit est `jeu_de_la_vie`.
 
 ## Fichier d'entrée
 
-La première ligne contient le nombre de lignes puis le nombre de colonnes. Les lignes suivantes contiennent uniquement des `0` (mort) et des `1` (vivant). Le fichier `exemple.txt` reprend l'exemple du sujet.
+La première ligne contient le nombre de lignes puis le nombre de colonnes. Les lignes suivantes contiennent uniquement des `0` (mort) et des `1` (vivant). Le fichier `exemple.txt` reprend l'exemple du sujet. Ce format ne mémorise que les états : le mode torique et les obstacles sont des réglages de session qui ne sont pas enregistrés ; un nouveau lancement à partir d'un fichier repart d'une grille non torique et sans obstacle.
 
 ## Mode console
 
@@ -35,7 +35,7 @@ La première ligne contient le nombre de lignes puis le nombre de colonnes. Les 
 ./jeu_de_la_vie exemple.txt console 10
 ```
 
-Le dernier argument est le nombre maximal d'itérations ; il vaut 100 par défaut. Les fichiers `iteration_0.txt`, `iteration_1.txt`, etc. sont écrits dans `exemple.txt_out`, dans le dossier courant. L'itération 0 conserve l'état initial. Avant d'écrire un nouveau run, le mode console supprime uniquement les fichiers nommés exactement `iteration_<chiffres>.txt` (par exemple `iteration_3.txt`) dans ce dossier ; les autres fichiers et dossiers sont conservés. Le programme s'arrête dès qu'une itération ne modifie plus aucune cellule, même si la limite n'est pas atteinte.
+Le dernier argument est le nombre maximal d'itérations ; il vaut 100 par défaut. Les fichiers `iteration_0.txt`, `iteration_1.txt`, etc. sont écrits dans `exemple.txt_out`, dans le dossier courant. L'itération 0 conserve l'état initial. Avant d'écrire un nouveau run, le mode console supprime uniquement les fichiers nommés exactement `iteration_<chiffres>.txt` (par exemple `iteration_3.txt`) dans ce dossier ; les autres fichiers et dossiers sont conservés. Le programme s'arrête dès qu'une itération ne modifie plus aucune cellule, même si la limite n'est pas atteinte. Le mode console reste non torique et sans obstacle.
 
 ## Mode graphique
 
@@ -52,16 +52,20 @@ La barre latérale permet de contrôler la simulation et de choisir un outil d'�
 | Lecture / Pause | `Espace` |
 | Pas à pas | `N` ou `flèche droite` |
 | Vitesse `-` / `+` | `-` / `+` |
-| Réinitialiser la grille initiale (en pause) | `R` |
-| Effacer toutes les cellules | `C` |
+| Réinitialiser la grille initiale, tore et obstacles compris (en pause) | `R` |
+| Effacer toutes les cellules et retirer les obstacles | `C` |
+| Basculer la grille torique | `T` |
 | Sélectionner l'outil Cellule | `0` |
+| Sélectionner l'outil Obstacle | `O` |
 | Sélectionner Planeur / Clignotant / Bloc / Crapaud | `1` / `2` / `3` / `4` |
 
 `+` réduit le délai de 50 ms (minimum 10 ms) et `-` l'augmente de 50 ms (maximum 2000 ms). Avec l'outil **Cellule**, un clic gauche sur une case inverse son état et mémorise le nouvel état. En maintenant le bouton gauche et en glissant, ce même état est appliqué aux nouvelles cases traversées, sans jamais les rebasculer ; relâcher arrête le dessin et sortir de la grille n'applique rien. Avec un motif sélectionné, le clic place le motif en le centrant sur la case ; le placement est refusé sans modification si le motif ne tient pas entièrement dans la grille, et le message `Motif hors limites` apparaît alors dans la barre latérale. Ce message est effacé par la prochaine action réussie, un changement d'outil, un reset ou un clear. Toute édition met la simulation en pause.
 
-Lorsque la limite d'itérations est atteinte, une édition réussie efface l'état de limite et accorde un nouveau budget d'itérations égal au budget initial, à partir de l'itération courante ; le compteur d'itérations n'est pas remis à zéro. Reset et Clear restaurent le budget initial. La répétition automatique des touches est désactivée : maintenir une touche ne la répète pas. `R` restaure la grille initiale en pause ; le lancement du mode graphique reste automatique. Le crapaud prédéfini est une forme 2x4.
+La grille est **non torique par défaut**. Le bouton `Tore : non` / `Tore : oui` ou la touche `T` bascule le tore : chaque voisin sortant est alors replié modulo le nombre de lignes et de colonnes, horizontalement, verticalement et dans les coins. Avec l'outil **Obstacle** (`Outil obstacle` ou `O`), un clic gauche inverse le drapeau d'obstacle de la case sans modifier son état vivant ou mort ; cet outil ne se glisse pas. Pendant `evoluer`, un obstacle est figé : il garde exactement son état et la règle n'est pas appelée pour lui. Un obstacle vivant compte néanmoins comme une voisine vivante pour les autres cellules ; un obstacle mort ne compte pas.
 
-Les cellules vivantes sont blanches et les cellules mortes noires. L'état, l'itération, le délai, l'outil courant et l'éventuel message de placement sont affichés dans la barre latérale. Lorsque la grille devient stable ou que la limite d'itérations est atteinte, la simulation se met en pause mais la fenêtre reste ouverte. Fermer la fenêtre quitte le programme.
+Lorsque la limite d'itérations est atteinte, une modification réussie (cellule, glisser, obstacle, motif ou bascule du tore) met la simulation en pause, efface l'état de limite et accorde un nouveau budget d'itérations égal au budget initial, à partir de l'itération courante ; le compteur d'itérations n'est pas remis à zéro. Reset et Clear restaurent le budget initial. Reset restaure en outre le tore et les obstacles initiaux, c'est-à-dire tels qu'ils étaient à la construction du Jeu, tandis que Clear tue toutes les cellules et retire les obstacles sans changer le tore courant. La répétition automatique des touches est désactivée : maintenir une touche ne la répète pas. `R` restaure aussi la grille initiale en pause ; le lancement du mode graphique reste automatique. Le crapaud prédéfini est une forme 2x4.
+
+Les cellules normales vivantes sont blanches et les cellules normales mortes noires ; les obstacles vivants sont bleus et les obstacles morts gris. L'état, l'itération, le délai, l'outil courant, le mode torique et l'éventuel message de placement sont affichés dans la barre latérale. Lorsque la grille devient stable ou que la limite d'itérations est atteinte, la simulation se met en pause mais la fenêtre reste ouverte. Fermer la fenêtre quitte le programme.
 
 ## Tests unitaires intégrés
 
@@ -75,17 +79,18 @@ Ou directement :
 ./jeu_de_la_vie --test
 ```
 
-`Tests::verifierGrille` reçoit une grille initiale, une grille attendue et un nombre arbitraire d'itérations ; il s'arrête dès que la stabilité est détectée. Les scénarios métier vérifient un clignotant après une et deux itérations, ainsi que le scénario `le bloc reste stable lors d'une demande de cinq itérations`. Les tests de fichiers et de console sont regroupés dans `TestsFichiers::executer`, appelé par `Tests::executer` : ils couvrent les allers-retours lecture/écriture, les cas d'erreur de fichier, le mode console, le nettoyage ciblé des anciens `iteration_N.txt` et la préservation des autres fichiers. Le programme renvoie 0 si tous les tests réussissent, sinon 1.
+`Tests::verifierGrille` reçoit une grille initiale, une grille attendue et un nombre arbitraire d'itérations ; il s'arrête dès que la stabilité est détectée. Les scénarios métier vérifient un clignotant après une et deux itérations, ainsi que le scénario `le bloc reste stable lors d'une demande de cinq itérations`. Les tests de fichiers et de console sont regroupés dans `TestsFichiers::executer`, appelé par `Tests::executer` : ils couvrent les allers-retours lecture/écriture, les cas d'erreur de fichier, le mode console, le nettoyage ciblé des anciens `iteration_N.txt` et la préservation des autres fichiers. `TestsExtensions` est intégré de façon inconditionnelle : son en-tête est inclus, son fichier source est compilé par le `Makefile` et `TestsExtensions::executer` est appelé par `Tests::executer` ; il couvre le repli torique horizontal, vertical et de coin, les petites grilles 1x1 et 1xN, les obstacles figés mais comptés comme voisines, la bascule d'obstacle, l'effacement, la réinitialisation et la copie indépendante des états et obstacles. Le programme renvoie 0 si tous les tests réussissent, sinon 1.
 
 ## Organisation du code
 
-- `Jeu` contrôle les itérations, détecte la stabilité et gère les éditions, l'effacement et la réinitialisation.
-- `Grille` compte les voisines et applique simultanément les nouveaux états.
-- `Cellule` possède un `EtatCellule` polymorphe : `EtatVivant` ou `EtatMort`.
+- `Jeu` contrôle les itérations, détecte la stabilité et gère les éditions, le tore, les obstacles, l'effacement et la réinitialisation.
+- `Grille` compte les voisines (avec repli torique optionnel), applique simultanément les nouveaux états et gère les obstacles.
+- `Cellule` possède un `EtatCellule` polymorphe (`EtatVivant` ou `EtatMort`) et un drapeau d'obstacle copié avec la cellule.
 - `Motif` représente une forme rectangulaire et fournit les quatre motifs prédéfinis.
 - `RegleConway` applique les règles via l'interface abstraite `Regle`, indépendante des états.
-- `FichierGrille` isole la lecture et l'écriture des fichiers.
-- `ModeConsole` et `ModeGraphique` utilisent le modèle sans modifier ses règles ; le mode graphique s'appuie sur SFML et propose l'édition interactive.
-- `Tests` vérifie le modèle et appelle `TestsFichiers`, qui isole les tests de fichiers et de mode console.
+- `FichierGrille` isole la lecture et l'écriture des fichiers ; le format texte ne contient que les états 0/1.
+- `ModeConsole` et `ModeGraphique` utilisent le modèle sans modifier ses règles ; le mode graphique s'appuie sur SFML et propose l'édition interactive, la bascule du tore et l'outil Obstacle.
+- `Tests` vérifie le modèle et appelle `TestsFichiers`, qui isole les tests de fichiers et de mode console, ainsi que `TestsExtensions`.
+- `TestsExtensions` vérifie le tore, les obstacles, leur réinitialisation et la copie indépendante des cellules.
 
-Les diagrammes demandés se trouvent dans [CONCEPTION.md](CONCEPTION.md). Les extensions optionnelles de grille torique, d'obstacles et de parallélisation ne font pas partie de cette version.
+Les diagrammes demandés se trouvent dans [CONCEPTION.md](CONCEPTION.md). La grille torique et les obstacles sont désormais implémentés dans le mode graphique ; seule la parallélisation reste une extension optionnelle non réalisée.

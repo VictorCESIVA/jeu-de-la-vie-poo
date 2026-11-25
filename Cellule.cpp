@@ -4,12 +4,14 @@ Cellule::Cellule(bool vivante) {
     changerEtat(vivante);
 }
 
-Cellule::Cellule(const Cellule& autre) : etat_(autre.etat_->cloner()) {
+Cellule::Cellule(const Cellule& autre)
+    : etat_(autre.etat_->cloner()), obstacle_(autre.obstacle_) {
 }
 
 Cellule& Cellule::operator=(const Cellule& autre) {
     if (this != &autre) {
         etat_ = autre.etat_->cloner();
+        obstacle_ = autre.obstacle_;
     }
     return *this;
 }
@@ -28,4 +30,12 @@ void Cellule::changerEtat(bool vivante) {
     } else {
         etat_ = std::make_unique<EtatMort>();
     }
+}
+
+bool Cellule::estObstacle() const {
+    return obstacle_;
+}
+
+void Cellule::definirObstacle(bool obstacle) {
+    obstacle_ = obstacle;
 }

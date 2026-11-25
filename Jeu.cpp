@@ -36,6 +36,16 @@ void Jeu::modifierCellule(int ligne, int colonne, bool vivante) {
     stable_ = false;
 }
 
+void Jeu::definirTorique(bool torique) {
+    grille_.definirTorique(torique);
+    stable_ = false;
+}
+
+void Jeu::basculerObstacle(int ligne, int colonne) {
+    grille_.basculerObstacle(ligne, colonne);
+    stable_ = false;
+}
+
 void Jeu::effacer() {
     grille_.effacer();
     iteration_ = 0;

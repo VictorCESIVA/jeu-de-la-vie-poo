@@ -20,7 +20,9 @@ private:
         VitessePlus,
         Reinitialiser,
         Effacer,
+        Tore,
         Cellule,
+        Obstacle,
         Motif
     };
 
@@ -35,7 +37,8 @@ private:
     std::vector<Motif> motifs_;
     sf::Font police_;
     std::vector<Bouton> boutons_;
-    int motifSelectionne_ = -1;  // -1 : outil cellule, sinon indice dans motifs_
+    int motifSelectionne_ = -1;  // -1 : outil cellule ou obstacle, sinon indice dans motifs_
+    bool outilObstacle_ = false;
     int nombreIterationsMaximum_ = 0;
     int budgetInitial_ = 0;
     bool enCours_ = true;
@@ -64,5 +67,7 @@ private:
     void effacer(Jeu& jeu);
     void changerDelai(int variation);
     void selectionnerCellule();
+    void selectionnerObstacle();
     void selectionnerMotif(int indice);
+    void basculerTorique(Jeu& jeu);
 };

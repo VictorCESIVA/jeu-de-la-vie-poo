@@ -61,7 +61,9 @@ void ModeGraphique::creerInterface(float largeurGrille) {
     ajouterBouton("Vitesse +", Commande::VitessePlus, -1, x, largeur, y);
     ajouterBouton("Réinitialiser", Commande::Reinitialiser, -1, x, largeur, y);
     ajouterBouton("Effacer", Commande::Effacer, -1, x, largeur, y);
+    ajouterBouton("Tore : non", Commande::Tore, -1, x, largeur, y);
     ajouterBouton("Outil cellule", Commande::Cellule, -1, x, largeur, y);
+    ajouterBouton("Outil obstacle", Commande::Obstacle, -1, x, largeur, y);
 
     for (int indice = 0; indice < static_cast<int>(motifs_.size()); ++indice) {
         ajouterBouton(motifs_[static_cast<std::size_t>(indice)].nom(), Commande::Motif,
@@ -69,7 +71,7 @@ void ModeGraphique::creerInterface(float largeurGrille) {
     }
 
     statutY_ = y;
-    hauteurInterface_ = statutY_ + 5.0f * HAUTEUR_LIGNE_STATUT + MARGE;
+    hauteurInterface_ = statutY_ + 6.0f * HAUTEUR_LIGNE_STATUT + MARGE;
 }
 
 void ModeGraphique::ajouterBouton(const std::string& libelle, Commande commande,
@@ -107,8 +109,13 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
         for (int colonne = 0; colonne < jeu.grille().colonnes(); ++colonne) {
             carre.setPosition(static_cast<float>(colonne) * tailleCellule,
                               static_cast<float>(ligne) * tailleCellule);
-            carre.setFillColor(jeu.grille().estVivante(ligne, colonne) ? sf::Color::White
-                                                                      : sf::Color::Black);
+            const bool vivante = jeu.grille().estVivante(ligne, colonne);
+            if (jeu.grille().estObstacle(ligne, colonne)) {
+                carre.setFillColor(vivante ? sf::Color(60, 120, 220)
+                                           : sf::Color(110, 110, 110));
+            } else {
+                carre.setFillColor(vivante ? sf::Color::White : sf::Color::Black);
+            }
             fenetre.draw(carre);
         }
     }
@@ -116,7 +123,9 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
     for (Bouton& bouton : boutons_) {
         bool selectionne = false;
         if (bouton.commande == Commande::Cellule) {
-            selectionne = motifSelectionne_ < 0;
+            selectionne = motifSelectionne_ < 0 && !outilObstacle_;
+        } else if (bouton.commande == Commande::Obstacle) {
+            selectionne = outilObstacle_;
         } else if (bouton.commande == Commande::Motif) {
             selectionne = bouton.indiceMotif == motifSelectionne_;
         }
@@ -127,6 +136,9 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
                                                  : sf::Color(110, 110, 110));
         if (bouton.commande == Commande::LecturePause) {
             bouton.texte.setString(texteUtf8(enCours_ ? "Pause" : "Lecture"));
+        } else if (bouton.commande == Commande::Tore) {
+            bouton.texte.setString(texteUtf8(jeu.grille().estTorique() ? "Tore : oui"
+                                                                      : "Tore : non"));
         }
         fenetre.draw(bouton.forme);
         fenetre.draw(bouton.texte);
@@ -141,14 +153,18 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
         etat = "En cours";
     }
 
-    const std::string outil = motifSelectionne_ < 0
-                                  ? "Cellule"
-                                  : motifs_[static_cast<std::size_t>(motifSelectionne_)].nom();
+    std::string outil = "Cellule";
+    if (outilObstacle_) {
+        outil = "Obstacle";
+    } else if (motifSelectionne_ >= 0) {
+        outil = motifs_[static_cast<std::size_t>(motifSelectionne_)].nom();
+    }
     const std::vector<std::string> lignes = {
         "État : " + etat,
         "Itération : " + std::to_string(jeu.iteration()),
         "Délai : " + std::to_string(delaiMs_) + " ms",
         "Outil : " + outil,
+        std::string("Tore : ") + (jeu.grille().estTorique() ? "oui" : "non"),
         message_};
 
     sf::Text texte;
@@ -157,7 +173,8 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
     float y = statutY_;
     int indiceLigne = 0;
     for (const std::string& ligne : lignes) {
-        texte.setFillColor(indiceLigne == 4 && !message_.empty()
+        texte.setFillColor(indiceLigne == static_cast<int>(lignes.size()) - 1 &&
+                                   !message_.empty()
                                ? sf::Color(255, 180, 90)
                                : sf::Color(220, 220, 220));
         texte.setString(texteUtf8(ligne));
@@ -223,8 +240,23 @@ void ModeGraphique::changerDelai(int variation) {
 
 void ModeGraphique::selectionnerCellule() {
     motifSelectionne_ = -1;
+    outilObstacle_ = false;
     glisserActif_ = false;
     message_.clear();
+}
+
+void ModeGraphique::selectionnerObstacle() {
+    motifSelectionne_ = -1;
+    outilObstacle_ = true;
+    glisserActif_ = false;
+    message_.clear();
+}
+
+void ModeGraphique::basculerTorique(Jeu& jeu) {
+    jeu.definirTorique(!jeu.grille().estTorique());
+    enCours_ = false;
+    glisserActif_ = false;
+    prolongerBudgetSiLimite(jeu);
 }
 
 void ModeGraphique::selectionnerMotif(int indice) {
@@ -232,6 +264,7 @@ void ModeGraphique::selectionnerMotif(int indice) {
         return;
     }
     motifSelectionne_ = indice;
+    outilObstacle_ = false;
     glisserActif_ = false;
     message_.clear();
 }
@@ -262,6 +295,12 @@ void ModeGraphique::traiterTouche(sf::Keyboard::Key touche, Jeu& jeu) {
     case sf::Keyboard::Num0:
     case sf::Keyboard::Numpad0:
         selectionnerCellule();
+        break;
+    case sf::Keyboard::O:
+        selectionnerObstacle();
+        break;
+    case sf::Keyboard::T:
+        basculerTorique(jeu);
         break;
     case sf::Keyboard::Num1:
     case sf::Keyboard::Numpad1:
@@ -309,8 +348,14 @@ bool ModeGraphique::traiterClicBouton(sf::Vector2f position, Jeu& jeu) {
         case Commande::Effacer:
             effacer(jeu);
             break;
+        case Commande::Tore:
+            basculerTorique(jeu);
+            break;
         case Commande::Cellule:
             selectionnerCellule();
+            break;
+        case Commande::Obstacle:
+            selectionnerObstacle();
             break;
         case Commande::Motif:
             selectionnerMotif(bouton.indiceMotif);
@@ -331,7 +376,11 @@ void ModeGraphique::traiterClicGrille(sf::Vector2f position, Jeu& jeu,
     }
 
     bool modifie = false;
-    if (motifSelectionne_ < 0) {
+    if (outilObstacle_) {
+        jeu.basculerObstacle(ligne, colonne);
+        glisserActif_ = false;
+        modifie = true;
+    } else if (motifSelectionne_ < 0) {
         jeu.basculerCellule(ligne, colonne);
         etatGlisser_ = jeu.grille().estVivante(ligne, colonne);
         derniereLigneGlisser_ = ligne;

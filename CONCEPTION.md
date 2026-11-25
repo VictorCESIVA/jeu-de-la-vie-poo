@@ -21,6 +21,8 @@ classDiagram
         +grille() const Grille&
         +basculerCellule(ligne, colonne) void
         +modifierCellule(ligne, colonne, vivante) void
+        +definirTorique(torique) void
+        +basculerObstacle(ligne, colonne) void
         +effacer() void
         +reinitialiser() void
         +placerMotif(motif, ligneCentre, colonneCentre) bool
@@ -28,13 +30,19 @@ classDiagram
     class Grille {
         -lignes_ : int
         -colonnes_ : int
+        -torique_ : bool
         -cellules_ : vector
         -compterVoisinesVivantes(ligne, colonne) int
         +lignes() int
         +colonnes() int
         +estVivante(ligne, colonne) bool
+        +estObstacle(ligne, colonne) bool
+        +estTorique() bool
+        +definirTorique(torique) void
         +modifierCellule(ligne, colonne, vivante) void
         +basculerCellule(ligne, colonne) void
+        +modifierObstacle(ligne, colonne, obstacle) void
+        +basculerObstacle(ligne, colonne) void
         +effacer() void
         +evoluer(regle) bool
         +aMemesEtats(autre) bool
@@ -51,8 +59,11 @@ classDiagram
     }
     class Cellule {
         -etat_ : EtatCellule
+        -obstacle_ : bool
         +estVivante() bool
         +changerEtat(vivante) void
+        +estObstacle() bool
+        +definirObstacle(obstacle) void
     }
     class EtatCellule {
         <<abstract>>
@@ -87,6 +98,7 @@ classDiagram
         -police_ : sf::Font
         -boutons_ : vector
         -motifSelectionne_ : int
+        -outilObstacle_ : bool
         -nombreIterationsMaximum_ : int
         -budgetInitial_ : int
         -enCours_ : bool
@@ -114,13 +126,18 @@ classDiagram
         -effacer(jeu) void
         -changerDelai(variation) void
         -selectionnerCellule() void
+        -selectionnerObstacle() void
         -selectionnerMotif(indice) void
+        -basculerTorique(jeu) void
     }
     class Tests {
         -verifierGrille(initiale, attendue, iterations)$ bool
         +executer()$ int
     }
     class TestsFichiers {
+        +executer()$ bool
+    }
+    class TestsExtensions {
         +executer()$ bool
     }
 
@@ -135,23 +152,34 @@ classDiagram
     Grille ..> Regle : utilise
     FichierGrille ..> Grille : lit et écrit
     ModeConsole ..> Jeu : pilote
-    ModeGraphique ..> Jeu : pilote et édite
+    ModeGraphique ..> Jeu : pilote et édite, tore et obstacles
     ModeGraphique "1" *-- "0..*" Motif : propose
     Tests ..> Jeu : vérifie
     Tests ..> TestsFichiers : appelle
+    Tests ..> TestsExtensions : appelle
     TestsFichiers ..> FichierGrille : teste
     TestsFichiers ..> ModeConsole : teste
+    TestsExtensions ..> Jeu : vérifie réinitialisation et stabilité
+    TestsExtensions ..> Grille : vérifie tore, obstacles et copie
 ```
 
 Notes de cohérence :
 
 - `Jeu::regle_` est une référence non propriétaire `const Regle&` ; la règle doit vivre au moins aussi longtemps que le `Jeu`.
-- `ModeGraphique` mémorise le budget initial. Une édition réussie après la limite efface `limiteAtteinte_` et fixe `nombreIterationsMaximum_` à `iteration + budgetInitial_`, sans remettre le compteur à zéro.
-- `R` réinitialise en pause ; Reset et Clear remettent `nombreIterationsMaximum_` à `budgetInitial_`.
+- `ModeGraphique` mémorise le budget initial. Une modification réussie (cellule, glisser, obstacle, motif ou bascule du tore) met la simulation en pause et, après la limite, efface `limiteAtteinte_` et fixe `nombreIterationsMaximum_` à `iteration + budgetInitial_`, sans remettre le compteur à zéro.
+- `R` réinitialise en pause et restaure le tore et les obstacles initiaux ; Reset et Clear remettent `nombreIterationsMaximum_` à `budgetInitial_`. Clear conserve le tore courant.
+- La grille est non torique par défaut (`Grille::torique_ = false`). En mode torique, chaque voisin sortant est replié modulo `lignes_` et `colonnes_`, horizontalement, verticalement et dans les coins ; le mode console ne l'active jamais.
+- `T` ou le bouton `Tore` bascule le tore ; `O` ou le bouton `Outil obstacle` sélectionne l'outil Obstacle. Un clic avec cet outil inverse `Cellule::obstacle_` sans changer son état vivant ou mort ; le glisser ne s'applique pas aux obstacles.
+- `Grille::evoluer` conserve exactement l'état d'un obstacle et n'appelle pas `Regle::doitEtreVivante` pour lui. `compterVoisinesVivantes` s'appuie sur `estVivante` : un obstacle vivant compte donc comme voisine, un obstacle mort non.
+- `Jeu::reinitialiser` restaure `initiale_`, donc le tore et les obstacles définis à la construction. `Jeu::effacer` tue les cellules et retire les obstacles via `Grille::effacer`, sans modifier `torique_`.
+- Le format texte 0/1 ne mémorise ni tore ni obstacles. `FichierGrille::lire` produit une grille non torique sans obstacle ; le mode console reste donc non torique et sans obstacle.
+- Les obstacles vivants sont dessinés en bleu et les obstacles morts en gris ; les cellules normales vivantes restent blanches et les mortes noires.
+- `TestsExtensions.h` est inclus et `TestsExtensions::executer` est appelé par `Tests::executer` de façon inconditionnelle ; il vérifie le tore, les obstacles, Reset/Clear et la copie indépendante des cellules.
 - Le glisser gauche réutilise `etatGlisser_` et `Jeu::modifierCellule` ; le message `Motif hors limites` est porté par `message_`.
 - La répétition automatique du clavier est désactivée sur la fenêtre SFML.
 - `Motif::predefinis` fournit Planeur 3x3, Clignotant 3x3, Bloc 2x2 et Crapaud 2x4.
 - `ModeConsole::executer` supprime au préalable, dans le dossier de sortie, uniquement les fichiers réguliers nommés exactement `iteration_<chiffres>.txt` ; les autres fichiers et dossiers sont conservés.
+- La parallélisation reste une extension optionnelle non réalisée.
 
 ## Diagramme d'activité
 
@@ -174,9 +202,9 @@ flowchart TD
     F -- Graphique --> H[Ouvrir la fenêtre et créer la barre latérale]
     H --> N{Fenêtre ouverte ?}
     N -- Non --> Z
-    N -- Oui --> O[Traiter lecture, pause, pas à pas, vitesse, reset en pause et édition clic/glisser]
-    O --> P{Édition de cellule, glisser, effacement ou motif valide ?}
-    P -- Édition valide --> Q[Modifier la grille, mettre en pause et prolonger le budget si la limite était atteinte]
+    N -- Oui --> O[Traiter lecture, pause, pas à pas, vitesse, reset en pause, bascule du tore et édition cellule/obstacle/glisser]
+    O --> P{Édition cellule/obstacle, glisser, bascule du tore, reset, clear ou motif valide ?}
+    P -- Modification valide --> Q[Appliquer, mettre en pause et ajuster le budget : prolongation après limite, budget initial après Reset/Clear]
     P -- Motif refusé --> W[Afficher Motif hors limites]
     P -- Aucune édition --> R{Lecture active, délai écoulé, non stable et limite non atteinte ?}
     Q --> R
@@ -190,7 +218,7 @@ flowchart TD
     V --> N
 ```
 
-## Diagramme de séquence — une itération en mode console
+## Diagramme de séquence — une itération en mode console (sans tore ni obstacle)
 
 ```mermaid
 sequenceDiagram
