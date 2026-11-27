@@ -11,12 +11,13 @@
 #include <string>
 
 namespace {
-void afficherUsage(const char* programme) {
-    std::cerr << "Usage :\n"
-              << "  " << programme << " <fichier> console [iterations=100]\n"
-              << "  " << programme
-              << " <fichier> graphique [delai_ms=100] [iterations_max=1000]\n"
-              << "  " << programme << " --test\n";
+void afficherUsage(std::ostream& sortie, const char* programme) {
+    sortie << "Usage :\n"
+           << "  " << programme << " <fichier> console [iterations=100]\n"
+           << "  " << programme
+           << " <fichier> graphique [delai_ms=100] [iterations_max=1000]\n"
+           << "  " << programme << " --test\n"
+           << "  " << programme << " --help | -h\n";
 }
 
 int lireNombrePositif(const char* texte, const std::string& nom) {
@@ -36,11 +37,16 @@ int lireNombrePositif(const char* texte, const std::string& nom) {
 }
 
 int main(int argc, char* argv[]) {
+    if (argc == 2 && (std::string(argv[1]) == "--help" ||
+                      std::string(argv[1]) == "-h")) {
+        afficherUsage(std::cout, argv[0]);
+        return 0;
+    }
     if (argc == 2 && std::string(argv[1]) == "--test") {
         return Tests::executer();
     }
     if (argc < 3) {
-        afficherUsage(argv[0]);
+        afficherUsage(std::cerr, argv[0]);
         return 1;
     }
 
@@ -48,11 +54,11 @@ int main(int argc, char* argv[]) {
         const std::string chemin = argv[1];
         const std::string mode = argv[2];
         if (mode != "console" && mode != "graphique") {
-            afficherUsage(argv[0]);
+            afficherUsage(std::cerr, argv[0]);
             return 1;
         }
         if ((mode == "console" && argc > 4) || (mode == "graphique" && argc > 5)) {
-            afficherUsage(argv[0]);
+            afficherUsage(std::cerr, argv[0]);
             return 1;
         }
 

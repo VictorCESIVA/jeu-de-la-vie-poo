@@ -6,7 +6,21 @@ Implémentation C++17 du jeu de la vie de John Conway, avec un mode console et u
 
 ![Aperçu du mode graphique](docs/capture.png)
 
+## Fonctionnalités
+
+- Modes console (écriture des itérations dans `<entrée>_out`) et graphique SFML interactif.
+- Grille torique, cellules obstacles et quatre motifs prédéfinis plaçables.
+- Calcul parallèle de la génération suivante sur les grandes grilles.
+- Tests unitaires intégrés, exécutés par `make test`.
+
 ## Environnement et compilation
+
+Récupérer le dépôt :
+
+```bash
+git clone https://github.com/VictorCESIVA/jeu-de-la-vie-poo.git
+cd jeu-de-la-vie-poo
+```
 
 Sous Ubuntu 24.04, installer les outils nécessaires :
 
@@ -22,7 +36,7 @@ Puis, depuis ce dossier :
 make
 ```
 
-L'exécutable produit est `jeu_de_la_vie`.
+L'exécutable produit est `jeu_de_la_vie`. `./jeu_de_la_vie --help` affiche les options.
 
 ## Fichier d'entrée
 
