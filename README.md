@@ -38,6 +38,14 @@ make
 
 L'exécutable produit est `jeu_de_la_vie`. `./jeu_de_la_vie --help` affiche les options.
 
+Sans `sudo`, SFML peut être installé dans un préfixe local et fourni au `Makefile` :
+
+```bash
+make PREFIX=$HOME/.local/opt/sfml-2.6
+```
+
+Le binaire embarque alors le chemin de recherche des bibliothèques (`-rpath`) et se lance sans `LD_LIBRARY_PATH`.
+
 ## Fichier d'entrée
 
 La première ligne contient le nombre de lignes puis le nombre de colonnes. Les lignes suivantes contiennent uniquement des `0` (mort) et des `1` (vivant). Le fichier `exemple.txt` reprend l'exemple du sujet. Ce format ne mémorise que les états : le mode torique et les obstacles sont des réglages de session qui ne sont pas enregistrés ; un nouveau lancement à partir d'un fichier repart d'une grille non torique et sans obstacle.
