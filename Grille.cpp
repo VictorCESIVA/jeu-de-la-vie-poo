@@ -34,11 +34,17 @@ int Grille::colonnes() const {
     return colonnes_;
 }
 
+std::size_t Grille::indice(int ligne, int colonne) const {
+    // Cast avant multiplication : le produit peut dépasser INT_MAX.
+    return static_cast<std::size_t>(ligne) * static_cast<std::size_t>(colonnes_) +
+           static_cast<std::size_t>(colonne);
+}
+
 bool Grille::estVivante(int ligne, int colonne) const {
     if (ligne < 0 || ligne >= lignes_ || colonne < 0 || colonne >= colonnes_) {
         throw std::out_of_range("Cellule hors de la grille.");
     }
-    return cellules_[static_cast<std::size_t>(ligne * colonnes_ + colonne)].estVivante();
+    return cellules_[indice(ligne, colonne)].estVivante();
 }
 
 void Grille::modifierCellule(int ligne, int colonne, bool vivante) {
@@ -46,15 +52,14 @@ void Grille::modifierCellule(int ligne, int colonne, bool vivante) {
         throw std::out_of_range("Cellule hors de la grille.");
     }
 
-    const std::size_t indice = static_cast<std::size_t>(ligne * colonnes_ + colonne);
-    cellules_[indice].changerEtat(vivante);
+    cellules_[indice(ligne, colonne)].changerEtat(vivante);
 }
 
 bool Grille::estObstacle(int ligne, int colonne) const {
     if (ligne < 0 || ligne >= lignes_ || colonne < 0 || colonne >= colonnes_) {
         throw std::out_of_range("Cellule hors de la grille.");
     }
-    return cellules_[static_cast<std::size_t>(ligne * colonnes_ + colonne)].estObstacle();
+    return cellules_[indice(ligne, colonne)].estObstacle();
 }
 
 bool Grille::estTorique() const {
@@ -75,7 +80,7 @@ void Grille::modifierObstacle(int ligne, int colonne, bool obstacle) {
         throw std::out_of_range("Cellule hors de la grille.");
     }
 
-    cellules_[static_cast<std::size_t>(ligne * colonnes_ + colonne)].definirObstacle(obstacle);
+    cellules_[indice(ligne, colonne)].definirObstacle(obstacle);
 }
 
 void Grille::basculerObstacle(int ligne, int colonne) {
@@ -130,20 +135,18 @@ void Grille::calculerEtatsSuivants(const Regle& regle, int ligneDebut, int ligne
                                    std::vector<unsigned char>& prochainsEtats) const {
     for (int ligne = ligneDebut; ligne < ligneFin; ++ligne) {
         for (int colonne = 0; colonne < colonnes_; ++colonne) {
-            const std::size_t indice =
-                static_cast<std::size_t>(ligne) * static_cast<std::size_t>(colonnes_) +
-                static_cast<std::size_t>(colonne);
-            const Cellule& cellule = cellules_[indice];
+            const std::size_t position = indice(ligne, colonne);
+            const Cellule& cellule = cellules_[position];
             const bool vivante = cellule.estVivante();
 
             // Un obstacle ne suit jamais la règle : il garde exactement son état.
             if (cellule.estObstacle()) {
-                prochainsEtats[indice] = vivante ? 1 : 0;
+                prochainsEtats[position] = vivante ? 1 : 0;
                 continue;
             }
 
             const int voisines = compterVoisinesVivantes(ligne, colonne);
-            prochainsEtats[indice] =
+            prochainsEtats[position] =
                 regle.doitEtreVivante(vivante, voisines) ? 1 : 0;
         }
     }
@@ -187,14 +190,12 @@ bool Grille::evoluer(const Regle& regle) {
     bool stable = true;
     for (int ligne = 0; ligne < lignes_; ++ligne) {
         for (int colonne = 0; colonne < colonnes_; ++colonne) {
-            const std::size_t indice =
-                static_cast<std::size_t>(ligne) * static_cast<std::size_t>(colonnes_) +
-                static_cast<std::size_t>(colonne);
-            const bool prochainEtat = prochainsEtats[indice] != 0;
-            if (cellules_[indice].estVivante() != prochainEtat) {
+            const std::size_t position = indice(ligne, colonne);
+            const bool prochainEtat = prochainsEtats[position] != 0;
+            if (cellules_[position].estVivante() != prochainEtat) {
                 stable = false;
             }
-            cellules_[indice].changerEtat(prochainEtat);
+            cellules_[position].changerEtat(prochainEtat);
         }
     }
 

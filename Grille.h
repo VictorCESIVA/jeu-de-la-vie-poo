@@ -3,6 +3,7 @@
 #include "Cellule.h"
 #include "Regle.h"
 
+#include <cstddef>
 #include <vector>
 
 class Grille {
@@ -12,6 +13,7 @@ class Grille {
     std::vector<Cellule> cellules_;
 
     int compterVoisinesVivantes(int ligne, int colonne) const;
+    std::size_t indice(int ligne, int colonne) const;
     void calculerEtatsSuivants(const Regle& regle, int ligneDebut, int ligneFin,
                                std::vector<unsigned char>& prochainsEtats) const;
 
