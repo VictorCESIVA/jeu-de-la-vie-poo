@@ -111,3 +111,7 @@ Ou directement :
 - `TestsExtensions` vérifie le tore, les obstacles, leur réinitialisation, la copie indépendante des cellules et une grande grille parallèle.
 
 Les diagrammes demandés se trouvent dans [CONCEPTION.md](CONCEPTION.md). Les quatre extensions bonus du sujet — grille torique, obstacles, motifs et parallélisation — sont implémentées.
+
+## Licence
+
+Distribué sous licence MIT. Voir [LICENSE](LICENSE).
