@@ -8,7 +8,7 @@ Implémentation C++17 du jeu de la vie de John Conway, avec un mode console et u
 
 ## Environnement et compilation
 
-Sous Ubuntu, installer les outils nécessaires :
+Sous Ubuntu 24.04, installer les outils nécessaires :
 
 ```bash
 sudo apt-get install g++ make libsfml-dev fonts-dejavu-core

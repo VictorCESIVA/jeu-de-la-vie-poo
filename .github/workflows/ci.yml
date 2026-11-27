@@ -9,7 +9,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Le paquet libsfml-dev d'Ubuntu 24.04 fournit SFML 2.6 ; ubuntu-latest
+    # fournit désormais SFML 3, dont l'API des événements est incompatible.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
