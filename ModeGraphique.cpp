@@ -263,6 +263,7 @@ void ModeGraphique::basculerTorique(Jeu& jeu) {
     jeu.definirTorique(!jeu.grille().estTorique());
     enCours_ = false;
     glisserActif_ = false;
+    message_.clear();
     prolongerBudgetSiLimite(jeu);
 }
 
