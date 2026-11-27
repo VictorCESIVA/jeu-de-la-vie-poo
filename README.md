@@ -1,11 +1,10 @@
----
-title: Jeu de la vie — Guide d'utilisation
-tags: [poo, cpp, projet]
----
-
 # Jeu de la vie
 
+![CI](https://github.com/VictorCESIVA/jeu-de-la-vie-poo/actions/workflows/ci.yml/badge.svg)
+
 Implémentation C++17 du jeu de la vie de John Conway, avec un mode console et un mode graphique SFML.
+
+![Aperçu du mode graphique](docs/capture.png)
 
 ## Environnement et compilation
 

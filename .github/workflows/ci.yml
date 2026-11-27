@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer les dépendances
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libsfml-dev fonts-dejavu-core
+
+      - name: Compiler
+        run: make -j"$(nproc)"
+
+      - name: Tester
+        run: make test

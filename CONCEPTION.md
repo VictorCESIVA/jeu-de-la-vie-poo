@@ -1,9 +1,4 @@
----
-title: Jeu de la vie — Conception UML
-tags: [poo, uml, projet]
----
-
-# Conception UML
+# Jeu de la vie — Conception UML
 
 ## Diagramme de classes
 
