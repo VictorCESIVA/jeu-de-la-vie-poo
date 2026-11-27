@@ -28,6 +28,7 @@ classDiagram
         -torique_ : bool
         -cellules_ : vector
         -compterVoisinesVivantes(ligne, colonne) int
+        -indice(ligne, colonne) size_t
         -calculerEtatsSuivants(regle, debut, fin, prochainsEtats) void
         +lignes() int
         +colonnes() int
