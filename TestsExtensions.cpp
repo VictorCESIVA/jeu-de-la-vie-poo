@@ -4,9 +4,11 @@
 #include "Jeu.h"
 #include "Regle.h"
 
+#include <atomic>
 #include <cstddef>
 #include <initializer_list>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -65,9 +67,28 @@ bool grilleEntierementVide(const Grille& grille) {
     return true;
 }
 
+template <typename Action>
+void verifierHorsBornes(Action action, const std::string& description, bool& reussite) {
+    try {
+        action();
+    } catch (const std::out_of_range& erreur) {
+        verifier(std::string(erreur.what()) == "Cellule hors de la grille.",
+                 description + " : message inattendu : " + erreur.what(), reussite);
+        return;
+    } catch (const std::exception& erreur) {
+        verifier(false, description + " : type d'exception inattendu : " + erreur.what(),
+                 reussite);
+        return;
+    } catch (...) {
+        verifier(false, description + " : exception non standard", reussite);
+        return;
+    }
+    verifier(false, description + " : aucune exception levée", reussite);
+}
+
 class RegleEspionne final : public Regle {
     bool resultat_;
-    mutable int appels_ = 0;
+    mutable std::atomic<int> appels_{0};
 
 public:
     explicit RegleEspionne(bool resultat) : resultat_(resultat) {
@@ -79,7 +100,7 @@ public:
     }
 
     int appels() const {
-        return appels_;
+        return appels_.load();
     }
 };
 
@@ -164,6 +185,40 @@ void testerToreEtRepli(bool& reussite) {
              reussite);
 }
 
+void testerTore2x2Multiplicites(bool& reussite) {
+    const RegleConway regle;
+
+    // En tore 2x2, les huit décalages retombent sur trois cellules distinctes : la
+    // diagonale opposée est comptée 4 fois, chaque orthogonale 2 fois.
+    Grille diagonale = grilleAvec(2, 2, {{0, 0}, {1, 1}});
+    diagonale.definirTorique(true);
+    diagonale.evoluer(regle);
+    verifier(memesCellulesEtObstacles(diagonale, grilleVide(2, 2)),
+             "en tore 2x2, deux vivantes en diagonale se comptent 4 fois et meurent",
+             reussite);
+
+    Grille voisines = grilleAvec(2, 2, {{0, 0}, {0, 1}});
+    voisines.definirTorique(true);
+    verifier(voisines.evoluer(regle),
+             "en tore 2x2, deux vivantes adjacentes ont 2 voisines et sont stables",
+             reussite);
+    verifier(memesCellulesEtObstacles(voisines, grilleAvec(2, 2, {{0, 0}, {0, 1}})),
+             "en tore 2x2, la paire adjacente doit rester inchangée", reussite);
+
+    Grille seule = grilleAvec(2, 2, {{0, 0}});
+    seule.definirTorique(true);
+    seule.evoluer(regle);
+    verifier(memesCellulesEtObstacles(seule, grilleVide(2, 2)),
+             "en tore 2x2, une vivante isolée doit mourir", reussite);
+
+    Grille pleine = grilleAvec(2, 2, {{0, 0}, {0, 1}, {1, 0}, {1, 1}});
+    pleine.definirTorique(true);
+    pleine.evoluer(regle);
+    verifier(memesCellulesEtObstacles(pleine, grilleVide(2, 2)),
+             "en tore 2x2, quatre vivantes comptent chacune 8 voisines et meurent",
+             reussite);
+}
+
 void testerObstacles(bool& reussite) {
     const RegleConway regle;
 
@@ -209,6 +264,56 @@ void testerObstacles(bool& reussite) {
              reussite);
 }
 
+void testerObstacleDeBordTorique(bool& reussite) {
+    const RegleConway regle;
+
+    // Obstacle vivant en (0,0) : en tore 3x3 il est voisin de (2,2) par repli de coin.
+    // (2,1) et (1,2) complètent les trois voisines : (2,2) naît, l'obstacle est conservé.
+    Grille tore = grilleAvec(3, 3, {{2, 1}, {1, 2}});
+    tore.modifierCellule(0, 0, true);
+    tore.modifierObstacle(0, 0, true);
+    tore.definirTorique(true);
+    tore.evoluer(regle);
+    verifier(tore.estObstacle(0, 0) && tore.estVivante(0, 0),
+             "un obstacle vivant sur un coin du tore doit être conservé", reussite);
+    verifier(tore.estVivante(2, 2),
+             "un obstacle vivant de coin doit compter comme voisine repliée de (2,2)",
+             reussite);
+
+    // Sans tore, (0,0) n'est plus voisin de (2,2) : deux voisines seulement, pas de naissance.
+    Grille bornee = grilleAvec(3, 3, {{2, 1}, {1, 2}});
+    bornee.modifierCellule(0, 0, true);
+    bornee.modifierObstacle(0, 0, true);
+    bornee.evoluer(regle);
+    verifier(!bornee.estVivante(2, 2),
+             "hors tore, l'obstacle de coin ne doit pas compter pour (2,2)", reussite);
+    verifier(bornee.estObstacle(0, 0) && bornee.estVivante(0, 0),
+             "hors tore, l'obstacle vivant de coin doit aussi être conservé", reussite);
+}
+
+void testerAccesHorsBornes(bool& reussite) {
+    Grille grille = grilleAvec(2, 3, {{0, 0}, {1, 2}});
+    grille.modifierObstacle(0, 2, true);
+    const Grille reference = grille;
+
+    const std::pair<int, int> coordonneesInvalides[] = {
+        {-1, 0}, {0, -1}, {2, 0}, {0, 3}, {2, 3}, {-1, -1}};
+
+    for (const auto& [ligne, colonne] : coordonneesInvalides) {
+        const std::string position =
+            "(" + std::to_string(ligne) + "," + std::to_string(colonne) + ")";
+        verifierHorsBornes([&] { (void)grille.estObstacle(ligne, colonne); },
+                           "estObstacle hors bornes " + position, reussite);
+        verifierHorsBornes([&] { grille.modifierObstacle(ligne, colonne, true); },
+                           "modifierObstacle hors bornes " + position, reussite);
+        verifierHorsBornes([&] { grille.basculerObstacle(ligne, colonne); },
+                           "basculerObstacle hors bornes " + position, reussite);
+    }
+
+    verifier(memesCellulesEtObstacles(grille, reference),
+             "les accès hors bornes ne doivent modifier ni états ni obstacles", reussite);
+}
+
 void testerBasculeEtStabilite(bool& reussite) {
     const RegleConway regle;
 
@@ -238,6 +343,20 @@ void testerBasculeEtStabilite(bool& reussite) {
     verifier(!jeu.estStable(),
              "basculer l'obstacle d'une cellule morte doit lever la stabilité",
              reussite);
+}
+
+void testerDoubleBasculeTorique(bool& reussite) {
+    Grille grille = grilleAvec(2, 3, {{0, 1}, {1, 2}});
+    grille.modifierObstacle(0, 0, true);
+    grille.modifierObstacle(1, 1, true);
+    const Grille reference = grille;
+
+    grille.definirTorique(true);
+    grille.definirTorique(false);
+    verifier(!grille.estTorique(),
+             "deux bascules du tore doivent revenir au mode non torique", reussite);
+    verifier(memesCellulesEtObstacles(grille, reference),
+             "deux bascules du tore ne doivent modifier ni états ni obstacles", reussite);
 }
 
 void testerReinitialisationEtEffacement(bool& reussite) {
@@ -342,6 +461,34 @@ void testerCopieDeGrille(bool& reussite) {
              reussite);
 }
 
+void testerAMemesEtats(bool& reussite) {
+    // Contrat actuel : uniquement les dimensions et les états vivants/morts.
+    const Grille base = grilleAvec(2, 3, {{0, 1}, {1, 2}});
+
+    Grille memeEtats = base;
+    memeEtats.definirTorique(true);
+    memeEtats.modifierObstacle(0, 0, true);
+    verifier(base.aMemesEtats(memeEtats),
+             "aMemesEtats doit ignorer le tore et les obstacles", reussite);
+
+    Grille etatDifferent = base;
+    etatDifferent.basculerCellule(0, 1);
+    verifier(!base.aMemesEtats(etatDifferent),
+             "aMemesEtats doit être faux si un état diffère", reussite);
+
+    Grille obstacleSeul = base;
+    obstacleSeul.modifierObstacle(0, 1, true);
+    verifier(base.aMemesEtats(obstacleSeul),
+             "aMemesEtats doit rester vrai si seul un obstacle diffère", reussite);
+
+    const Grille uneLigne(1, 6, {0, 1, 1, 0, 1, 1});
+    const Grille troisLignes(3, 2, {0, 1,
+                                    1, 0,
+                                    1, 1});
+    verifier(!uneLigne.aMemesEtats(troisLignes),
+             "aMemesEtats doit tenir compte des dimensions", reussite);
+}
+
 void testerPetitesGrilles(bool& reussite) {
     const RegleConway regle;
 
@@ -378,17 +525,52 @@ void testerPetitesGrilles(bool& reussite) {
              reussite);
 }
 
+void testerGrandeGrille(bool& reussite) {
+    const RegleConway regle;
+    constexpr int cote = 200;
+    constexpr int depart = 99;
+
+    // Un planeur au centre d'une grille 200x200 emprunte le chemin parallèle.
+    Grille grande = grilleVide(cote, cote);
+    const std::pair<int, int> planeur[] = {
+        {0, 1}, {1, 2}, {2, 0}, {2, 1}, {2, 2}};
+    for (const auto& [ligne, colonne] : planeur) {
+        grande.modifierCellule(depart + ligne, depart + colonne, true);
+    }
+
+    for (int numero = 0; numero < 4; ++numero) {
+        grande.evoluer(regle);
+    }
+
+    // Après quatre itérations, le planeur est translaté d'une case en diagonale.
+    Grille attendue = grilleVide(cote, cote);
+    const std::pair<int, int> planeurTranslaté[] = {
+        {1, 2}, {2, 3}, {3, 1}, {3, 2}, {3, 3}};
+    for (const auto& [ligne, colonne] : planeurTranslaté) {
+        attendue.modifierCellule(depart + ligne, depart + colonne, true);
+    }
+
+    verifier(grande.aMemesEtats(attendue),
+             "un planeur évolue correctement sur une grille 200x200", reussite);
+}
+
 }
 
 bool TestsExtensions::executer() {
     bool reussite = true;
 
     testerToreEtRepli(reussite);
+    testerTore2x2Multiplicites(reussite);
     testerObstacles(reussite);
+    testerObstacleDeBordTorique(reussite);
+    testerAccesHorsBornes(reussite);
     testerBasculeEtStabilite(reussite);
+    testerDoubleBasculeTorique(reussite);
     testerReinitialisationEtEffacement(reussite);
     testerCopieDeGrille(reussite);
+    testerAMemesEtats(reussite);
     testerPetitesGrilles(reussite);
+    testerGrandeGrille(reussite);
 
     if (reussite) {
         std::cout << "TestsExtensions : tous les tests sont passés.\n";

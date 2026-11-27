@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <stdexcept>
+#include <thread>
+#include <vector>
 
 Grille::Grille(int lignes, int colonnes, const std::vector<int>& etats)
     : lignes_(lignes), colonnes_(colonnes) {
@@ -117,29 +119,79 @@ int Grille::compterVoisinesVivantes(int ligne, int colonne) const {
     return nombre;
 }
 
-bool Grille::evoluer(const Regle& regle) {
-    std::vector<bool> prochainsEtats;
-    prochainsEtats.reserve(cellules_.size());
+namespace {
+// En dessous de ces seuils, créer des threads coûte plus cher que le calcul.
+constexpr std::size_t CELLULES_MIN_PARALLELE = 16384;
+constexpr int LIGNES_MIN_PARALLELE = 16;
+constexpr unsigned int THREADS_MAX = 16;
+}
 
-    for (int ligne = 0; ligne < lignes_; ++ligne) {
+void Grille::calculerEtatsSuivants(const Regle& regle, int ligneDebut, int ligneFin,
+                                   std::vector<unsigned char>& prochainsEtats) const {
+    for (int ligne = ligneDebut; ligne < ligneFin; ++ligne) {
         for (int colonne = 0; colonne < colonnes_; ++colonne) {
-            const bool vivante = estVivante(ligne, colonne);
+            const std::size_t indice =
+                static_cast<std::size_t>(ligne) * static_cast<std::size_t>(colonnes_) +
+                static_cast<std::size_t>(colonne);
+            const Cellule& cellule = cellules_[indice];
+            const bool vivante = cellule.estVivante();
+
             // Un obstacle ne suit jamais la règle : il garde exactement son état.
-            if (estObstacle(ligne, colonne)) {
-                prochainsEtats.push_back(vivante);
+            if (cellule.estObstacle()) {
+                prochainsEtats[indice] = vivante ? 1 : 0;
                 continue;
             }
+
             const int voisines = compterVoisinesVivantes(ligne, colonne);
-            prochainsEtats.push_back(regle.doitEtreVivante(vivante, voisines));
+            prochainsEtats[indice] =
+                regle.doitEtreVivante(vivante, voisines) ? 1 : 0;
+        }
+    }
+}
+
+bool Grille::evoluer(const Regle& regle) {
+    // unsigned char et non vector<bool> : les threads écrivent des indices distincts.
+    std::vector<unsigned char> prochainsEtats(cellules_.size());
+
+    const unsigned int processeurs = std::thread::hardware_concurrency();
+    if (cellules_.size() < CELLULES_MIN_PARALLELE || lignes_ < LIGNES_MIN_PARALLELE ||
+        processeurs < 2) {
+        calculerEtatsSuivants(regle, 0, lignes_, prochainsEtats);
+    } else {
+        unsigned int nombreThreads = processeurs;
+        if (nombreThreads > THREADS_MAX) {
+            nombreThreads = THREADS_MAX;
+        }
+        if (nombreThreads > static_cast<unsigned int>(lignes_)) {
+            nombreThreads = static_cast<unsigned int>(lignes_);
+        }
+
+        std::vector<std::thread> threads;
+        threads.reserve(nombreThreads);
+        for (unsigned int numero = 0; numero < nombreThreads; ++numero) {
+            const int debut = static_cast<int>(
+                static_cast<long long>(lignes_) * numero / nombreThreads);
+            const int fin = static_cast<int>(
+                static_cast<long long>(lignes_) * (numero + 1) / nombreThreads);
+            if (debut < fin) {
+                threads.emplace_back([this, &regle, &prochainsEtats, debut, fin] {
+                    calculerEtatsSuivants(regle, debut, fin, prochainsEtats);
+                });
+            }
+        }
+        for (std::thread& thread : threads) {
+            thread.join();
         }
     }
 
     bool stable = true;
     for (int ligne = 0; ligne < lignes_; ++ligne) {
         for (int colonne = 0; colonne < colonnes_; ++colonne) {
-            const std::size_t indice = static_cast<std::size_t>(ligne * colonnes_ + colonne);
-            const bool prochainEtat = prochainsEtats[indice];
-            if (estVivante(ligne, colonne) != prochainEtat) {
+            const std::size_t indice =
+                static_cast<std::size_t>(ligne) * static_cast<std::size_t>(colonnes_) +
+                static_cast<std::size_t>(colonne);
+            const bool prochainEtat = prochainsEtats[indice] != 0;
+            if (cellules_[indice].estVivante() != prochainEtat) {
                 stable = false;
             }
             cellules_[indice].changerEtat(prochainEtat);

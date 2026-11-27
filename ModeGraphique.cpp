@@ -1,6 +1,7 @@
 #include "ModeGraphique.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -95,7 +96,7 @@ void ModeGraphique::ajouterBouton(const std::string& libelle, Commande commande,
 }
 
 void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
-                             float tailleCellule, float largeurGrille) {
+                             float largeurGrille) {
     fenetre.clear(sf::Color(35, 35, 35));
 
     sf::RectangleShape barre(
@@ -104,21 +105,23 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
     barre.setFillColor(sf::Color(25, 25, 25));
     fenetre.draw(barre);
 
-    sf::RectangleShape carre(sf::Vector2f(tailleCellule - 1.0f, tailleCellule - 1.0f));
+    std::size_t sommet = 0;
     for (int ligne = 0; ligne < jeu.grille().lignes(); ++ligne) {
         for (int colonne = 0; colonne < jeu.grille().colonnes(); ++colonne) {
-            carre.setPosition(static_cast<float>(colonne) * tailleCellule,
-                              static_cast<float>(ligne) * tailleCellule);
             const bool vivante = jeu.grille().estVivante(ligne, colonne);
+            sf::Color couleur = vivante ? sf::Color::White : sf::Color::Black;
             if (jeu.grille().estObstacle(ligne, colonne)) {
-                carre.setFillColor(vivante ? sf::Color(60, 120, 220)
-                                           : sf::Color(110, 110, 110));
-            } else {
-                carre.setFillColor(vivante ? sf::Color::White : sf::Color::Black);
+                couleur = vivante ? sf::Color(60, 120, 220)
+                                  : sf::Color(110, 110, 110);
             }
-            fenetre.draw(carre);
+            cellules_[sommet].color = couleur;
+            cellules_[sommet + 1].color = couleur;
+            cellules_[sommet + 2].color = couleur;
+            cellules_[sommet + 3].color = couleur;
+            sommet += 4;
         }
     }
+    fenetre.draw(cellules_);
 
     for (Bouton& bouton : boutons_) {
         bool selectionne = false;
@@ -184,9 +187,13 @@ void ModeGraphique::afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
         ++indiceLigne;
     }
 
-    fenetre.setTitle("Jeu de la vie | " + etat + " | Iteration " +
-                     std::to_string(jeu.iteration()) + " | Delai " +
-                     std::to_string(delaiMs_) + " ms");
+    std::string titre = "Jeu de la vie | " + etat + " | Iteration " +
+                        std::to_string(jeu.iteration()) + " | Delai " +
+                        std::to_string(delaiMs_) + " ms";
+    if (titre != dernierTitre_) {
+        fenetre.setTitle(titre);
+        dernierTitre_ = titre;
+    }
     fenetre.display();
 }
 
@@ -436,6 +443,22 @@ void ModeGraphique::executer(Jeu& jeu, int nombreIterationsMaximum) {
     const float hauteurGrille = static_cast<float>(jeu.grille().lignes()) * tailleCellule;
     creerInterface(largeurGrille);
 
+    cellules_.resize(static_cast<std::size_t>(jeu.grille().lignes()) *
+                     static_cast<std::size_t>(jeu.grille().colonnes()) * 4);
+    std::size_t sommet = 0;
+    const float taille = tailleCellule - 1.0f;
+    for (int ligne = 0; ligne < jeu.grille().lignes(); ++ligne) {
+        for (int colonne = 0; colonne < jeu.grille().colonnes(); ++colonne) {
+            const float x = static_cast<float>(colonne) * tailleCellule;
+            const float y = static_cast<float>(ligne) * tailleCellule;
+            cellules_[sommet].position = sf::Vector2f(x, y);
+            cellules_[sommet + 1].position = sf::Vector2f(x + taille, y);
+            cellules_[sommet + 2].position = sf::Vector2f(x + taille, y + taille);
+            cellules_[sommet + 3].position = sf::Vector2f(x, y + taille);
+            sommet += 4;
+        }
+    }
+
     const unsigned int largeur =
         static_cast<unsigned int>(largeurGrille + LARGEUR_BARRE);
     const unsigned int hauteur =
@@ -443,6 +466,7 @@ void ModeGraphique::executer(Jeu& jeu, int nombreIterationsMaximum) {
 
     sf::RenderWindow fenetre(sf::VideoMode(largeur, hauteur), "Jeu de la vie",
                              sf::Style::Titlebar | sf::Style::Close);
+    dernierTitre_.clear();
     fenetre.setFramerateLimit(60);
     fenetre.setKeyRepeatEnabled(false);
     sf::Clock horloge;
@@ -501,7 +525,7 @@ void ModeGraphique::executer(Jeu& jeu, int nombreIterationsMaximum) {
             enCours_ = false;
         }
 
-        afficher(fenetre, jeu, tailleCellule, largeurGrille);
+        afficher(fenetre, jeu, largeurGrille);
     }
 
     std::cout << "Mode graphique terminé à l'itération " << jeu.iteration() << ".\n";

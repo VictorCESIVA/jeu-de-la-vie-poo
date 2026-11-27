@@ -12,6 +12,8 @@ class Grille {
     std::vector<Cellule> cellules_;
 
     int compterVoisinesVivantes(int ligne, int colonne) const;
+    void calculerEtatsSuivants(const Regle& regle, int ligneDebut, int ligneFin,
+                               std::vector<unsigned char>& prochainsEtats) const;
 
 public:
     Grille(int lignes, int colonnes, const std::vector<int>& etats);

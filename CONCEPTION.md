@@ -33,6 +33,7 @@ classDiagram
         -torique_ : bool
         -cellules_ : vector
         -compterVoisinesVivantes(ligne, colonne) int
+        -calculerEtatsSuivants(regle, debut, fin, prochainsEtats) void
         +lignes() int
         +colonnes() int
         +estVivante(ligne, colonne) bool
@@ -97,6 +98,7 @@ classDiagram
         -motifs_ : vector
         -police_ : sf::Font
         -boutons_ : vector
+        -cellules_ : sf::VertexArray
         -motifSelectionne_ : int
         -outilObstacle_ : bool
         -nombreIterationsMaximum_ : int
@@ -108,13 +110,14 @@ classDiagram
         -derniereLigneGlisser_ : int
         -derniereColonneGlisser_ : int
         -message_ : string
+        -dernierTitre_ : string
         -statutY_ : float
         -hauteurInterface_ : float
         +ModeGraphique(delaiMs)
         +executer(jeu, iterationsMaximum) void
         -creerInterface(largeurGrille) void
         -ajouterBouton(libelle, commande, indiceMotif, x, largeur, y) void
-        -afficher(fenetre, jeu, tailleCellule, largeurGrille) void
+        -afficher(fenetre, jeu, largeurGrille) void
         -traiterTouche(touche, jeu) void
         -traiterClicBouton(position, jeu) bool
         -traiterClicGrille(position, jeu, tailleCellule) void
@@ -159,8 +162,8 @@ classDiagram
     Tests ..> TestsExtensions : appelle
     TestsFichiers ..> FichierGrille : teste
     TestsFichiers ..> ModeConsole : teste
-    TestsExtensions ..> Jeu : vérifie réinitialisation et stabilité
-    TestsExtensions ..> Grille : vérifie tore, obstacles et copie
+    TestsExtensions ..> Jeu : vérifie réinitialisation, stabilité et bascule du tore
+    TestsExtensions ..> Grille : vérifie tore, obstacles, hors bornes, aMemesEtats et copie
 ```
 
 Notes de cohérence :
@@ -174,12 +177,14 @@ Notes de cohérence :
 - `Jeu::reinitialiser` restaure `initiale_`, donc le tore et les obstacles définis à la construction. `Jeu::effacer` tue les cellules et retire les obstacles via `Grille::effacer`, sans modifier `torique_`.
 - Le format texte 0/1 ne mémorise ni tore ni obstacles. `FichierGrille::lire` produit une grille non torique sans obstacle ; le mode console reste donc non torique et sans obstacle.
 - Les obstacles vivants sont dessinés en bleu et les obstacles morts en gris ; les cellules normales vivantes restent blanches et les mortes noires.
-- `TestsExtensions.h` est inclus et `TestsExtensions::executer` est appelé par `Tests::executer` de façon inconditionnelle ; il vérifie le tore, les obstacles, Reset/Clear et la copie indépendante des cellules.
+- `ModeGraphique::cellules_` est un `sf::VertexArray` de quads dont les positions sont précalculées à la création de l'interface ; à chaque image, seules les couleurs des sommets sont mises à jour et la grille est dessinée en un seul appel `draw`. `dernierTitre_` mémorise le dernier titre SFML : la fenêtre n'est réécrite que lorsque le texte change.
+- `TestsFichiers::executer` couvre les allers-retours (dont matrices non carrées), les formats valides CRLF et sans saut de ligne final, ainsi que les rejets : fichier vide, en-tête partiel, dimensions nulles ou négatives, données en trop, valeur texte ou flottante.
+- `TestsExtensions.h` est inclus et `TestsExtensions::executer` est appelé par `Tests::executer` de façon inconditionnelle ; il vérifie le tore (repli 3x3, tore 2x2 et multiplicités modulo, obstacle de bord torique), les obstacles figés mais comptés, les accès aux obstacles hors bornes sans modification, Reset/Clear, la double bascule du tore, le contrat de `aMemesEtats`, la copie indépendante des cellules et un planeur sur une grille 200x200 qui exerce le chemin des grandes grilles (parallèle si plusieurs cœurs sont disponibles).
+- `Grille::evoluer` calcule la génération suivante en parallèle dès que la grille compte au moins 16 384 cellules et 16 lignes et que plusieurs cœurs sont disponibles, avec au plus 16 threads issus de `std::thread::hardware_concurrency`. Le tableau des états futurs est un `std::vector<unsigned char>` (et non `std::vector<bool>`) pour que chaque thread écrive une case mémoire distincte sans course de données. Les états courants ne sont modifiés qu'après le `join` de tous les threads. En dessous des seuils ou avec un seul cœur, le calcul reste séquentiel. `Regle::doitEtreVivante` peut donc être appelée concurremment : une implémentation doit être thread-safe et sans effet de bord.
 - Le glisser gauche réutilise `etatGlisser_` et `Jeu::modifierCellule` ; le message `Motif hors limites` est porté par `message_`.
 - La répétition automatique du clavier est désactivée sur la fenêtre SFML.
 - `Motif::predefinis` fournit Planeur 3x3, Clignotant 3x3, Bloc 2x2 et Crapaud 2x4.
 - `ModeConsole::executer` supprime au préalable, dans le dossier de sortie, uniquement les fichiers réguliers nommés exactement `iteration_<chiffres>.txt` ; les autres fichiers et dossiers sont conservés.
-- La parallélisation reste une extension optionnelle non réalisée.
 
 ## Diagramme d'activité
 
@@ -194,7 +199,7 @@ flowchart TD
     F -- Console --> G[Créer le dossier, nettoyer les anciens iteration_N.txt ciblés et écrire l'itération 0]
     G --> I{Itérations restantes et grille non stable ?}
     I -- Non --> Z
-    I -- Oui --> J[Compter les voisines et calculer tous les états futurs]
+    I -- Oui --> J[Compter les voisines et calculer tous les états futurs, en parallèle sur les grandes grilles]
     J --> K[Appliquer simultanément les états et détecter la stabilité]
     K --> M[Écrire la grille dans son fichier]
     M --> I
@@ -244,7 +249,7 @@ sequenceDiagram
     loop Tant que la limite n'est pas atteinte et que la grille évolue
         Console->>Jeu: iterer()
         Jeu->>Grille: evoluer(règle)
-        loop Pour chaque cellule
+        loop Pour chaque cellule (plages de lignes en parallèle sur les grandes grilles)
             Grille->>Cellule: estVivante()
             Cellule->>Etat: estVivante()
             Etat-->>Cellule: état courant

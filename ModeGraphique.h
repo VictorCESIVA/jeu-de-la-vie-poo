@@ -37,6 +37,7 @@ private:
     std::vector<Motif> motifs_;
     sf::Font police_;
     std::vector<Bouton> boutons_;
+    sf::VertexArray cellules_{sf::Quads};  // positions fixes, seules les couleurs changent
     int motifSelectionne_ = -1;  // -1 : outil cellule ou obstacle, sinon indice dans motifs_
     bool outilObstacle_ = false;
     int nombreIterationsMaximum_ = 0;
@@ -48,14 +49,14 @@ private:
     int derniereLigneGlisser_ = -1;
     int derniereColonneGlisser_ = -1;
     std::string message_;
+    std::string dernierTitre_;
     float statutY_ = 0.0f;
     float hauteurInterface_ = 0.0f;
 
     void creerInterface(float largeurGrille);
     void ajouterBouton(const std::string& libelle, Commande commande,
                        int indiceMotif, float x, float largeur, float& y);
-    void afficher(sf::RenderWindow& fenetre, const Jeu& jeu,
-                  float tailleCellule, float largeurGrille);
+    void afficher(sf::RenderWindow& fenetre, const Jeu& jeu, float largeurGrille);
     void traiterTouche(sf::Keyboard::Key touche, Jeu& jeu);
     bool traiterClicBouton(sf::Vector2f position, Jeu& jeu);
     void traiterClicGrille(sf::Vector2f position, Jeu& jeu, float tailleCellule);

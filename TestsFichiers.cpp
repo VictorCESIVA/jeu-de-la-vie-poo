@@ -85,11 +85,15 @@ void verifierErreur(Action action, Predicat predicat, const std::string& descrip
                     bool& reussite) {
     try {
         action();
-    } catch (const std::exception& erreur) {
+    } catch (const std::runtime_error& erreur) {
         const std::string message = erreur.what();
         if (!predicat(message)) {
             verifier(false, description + " : message inattendu : " + message, reussite);
         }
+        return;
+    } catch (const std::exception& erreur) {
+        verifier(false, description + " : type d'exception inattendu : " + erreur.what(),
+                 reussite);
         return;
     } catch (...) {
         verifier(false, description + " : exception non standard", reussite);
@@ -103,6 +107,12 @@ void verifierAllerRetour(const Grille& grille, const std::filesystem::path& chem
     FichierGrille::ecrire(grille, chemin.string());
     const Grille relue = FichierGrille::lire(chemin.string());
     verifier(relue.aMemesEtats(grille), description, reussite);
+}
+
+void verifierLecture(const Grille& attendue, const std::filesystem::path& chemin,
+                     const std::string& description, bool& reussite) {
+    const Grille lue = FichierGrille::lire(chemin.string());
+    verifier(lue.aMemesEtats(attendue), description, reussite);
 }
 
 class DossierTemporaire {
@@ -227,6 +237,28 @@ bool TestsFichiers::executer() {
                             "aller-retour lecture/écriture 1x5", reussite);
         verifierAllerRetour(Grille(5, 1, {1, 0, 0, 1, 1}), "aller_retour_5x1.txt",
                             "aller-retour lecture/écriture 5x1", reussite);
+        verifierAllerRetour(Grille(2, 5, {1, 0, 1, 0, 1,
+                                          0, 1, 0, 1, 0}),
+                            "aller_retour_2x5.txt",
+                            "aller-retour lecture/écriture 2x5", reussite);
+        verifierAllerRetour(Grille(5, 2, {1, 0,
+                                          0, 1,
+                                          1, 1,
+                                          0, 0,
+                                          1, 0}),
+                            "aller_retour_5x2.txt",
+                            "aller-retour lecture/écriture 5x2", reussite);
+
+        ecrireTexte("crlf.txt", "2 3\r\n1 0 1\r\n0 1 0\r\n");
+        verifierLecture(Grille(2, 3, {1, 0, 1,
+                                      0, 1, 0}),
+                        "crlf.txt", "lecture d'un fichier CRLF valide", reussite);
+
+        ecrireTexte("sans_nouvelle_ligne.txt", "2 2\n1 0\n0 1");
+        verifierLecture(Grille(2, 2, {1, 0,
+                                      0, 1}),
+                        "sans_nouvelle_ligne.txt",
+                        "lecture d'un fichier sans saut de ligne final", reussite);
 
         ecrireTexte("matrice_incomplete.txt", "3 3\n1 0 1\n0 1\n0 0 0\n");
         verifierErreur(
@@ -272,6 +304,54 @@ bool TestsFichiers::executer() {
                        message.find("reserve") == std::string::npos;
             },
             "dimensions int max dans un petit fichier", reussite);
+
+        // En-tête vide, partiel ou dimensions nulles/négatives : même diagnostic de
+        // dimensions, avant toute lecture de cellule.
+        const auto verifierDimensionsInvalides = [&reussite](const std::string& nom,
+                                                             const std::string& contenu) {
+            ecrireTexte(nom, contenu);
+            verifierErreur(
+                [&nom] { (void)FichierGrille::lire(nom); },
+                [](const std::string& message) {
+                    return message.find("Dimensions absentes ou invalides") !=
+                           std::string::npos;
+                },
+                "diagnostic dimensions invalides : " + nom, reussite);
+        };
+        verifierDimensionsInvalides("vide.txt", "");
+        verifierDimensionsInvalides("entete_partiel.txt", "3\n");
+        verifierDimensionsInvalides("lignes_nulles.txt", "0 3\n1 0 0\n");
+        verifierDimensionsInvalides("colonnes_nulles.txt", "3 0\n1 0 0\n");
+        verifierDimensionsInvalides("lignes_negatives.txt", "-2 3\n1 0 0\n");
+        verifierDimensionsInvalides("colonnes_negatives.txt", "3 -1\n1 0 0\n");
+
+        ecrireTexte("valeurs_en_trop.txt", "2 2\n1 0\n0 1\n1\n");
+        verifierErreur(
+            [&] { (void)FichierGrille::lire("valeurs_en_trop.txt"); },
+            [](const std::string& message) {
+                return message == "La matrice contient plus de valeurs que prévu.";
+            },
+            "diagnostic valeurs en trop", reussite);
+
+        ecrireTexte("matrice_texte.txt", "2 2\n1 0\n0 x\n");
+        verifierErreur(
+            [&] { (void)FichierGrille::lire("matrice_texte.txt"); },
+            [](const std::string& message) {
+                return message.find("incomplète ou contient un entier illisible") !=
+                       std::string::npos;
+            },
+            "diagnostic valeur texte", reussite);
+
+        // Flottant avant la dernière cellule : « 0.5 » fournit 0 puis « .5 » rend la
+        // lecture suivante illisible (en fin de matrice, ce serait une valeur en trop).
+        ecrireTexte("matrice_flottante.txt", "2 2\n1 0.5\n0 1\n");
+        verifierErreur(
+            [&] { (void)FichierGrille::lire("matrice_flottante.txt"); },
+            [](const std::string& message) {
+                return message.find("incomplète ou contient un entier illisible") !=
+                       std::string::npos;
+            },
+            "diagnostic valeur flottante", reussite);
     } catch (const std::exception& erreur) {
         std::cerr << "Échec (fichiers) : exception inattendue : " << erreur.what() << '\n';
         return false;

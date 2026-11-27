@@ -67,6 +67,10 @@ Lorsque la limite d'itérations est atteinte, une modification réussie (cellule
 
 Les cellules normales vivantes sont blanches et les cellules normales mortes noires ; les obstacles vivants sont bleus et les obstacles morts gris. L'état, l'itération, le délai, l'outil courant, le mode torique et l'éventuel message de placement sont affichés dans la barre latérale. Lorsque la grille devient stable ou que la limite d'itérations est atteinte, la simulation se met en pause mais la fenêtre reste ouverte. Fermer la fenêtre quitte le programme.
 
+## Parallélisation
+
+`Grille::evoluer` calcule la génération suivante en parallèle dès que la grille compte au moins 16 384 cellules et 16 lignes et que plusieurs cœurs sont disponibles, avec au plus 16 threads (`std::thread::hardware_concurrency`). En dessous de ces seuils ou avec un seul cœur, le calcul reste séquentiel pour éviter le coût de création des threads. Chaque thread traite une plage de lignes et écrit dans des indices distincts du tableau des états futurs ; les états courants ne sont modifiés qu'après la fin de tous les threads. Une implémentation de `Regle` doit donc être thread-safe et sans effet de bord.
+
 ## Tests unitaires intégrés
 
 ```bash
@@ -79,18 +83,18 @@ Ou directement :
 ./jeu_de_la_vie --test
 ```
 
-`Tests::verifierGrille` reçoit une grille initiale, une grille attendue et un nombre arbitraire d'itérations ; il s'arrête dès que la stabilité est détectée. Les scénarios métier vérifient un clignotant après une et deux itérations, ainsi que le scénario `le bloc reste stable lors d'une demande de cinq itérations`. Les tests de fichiers et de console sont regroupés dans `TestsFichiers::executer`, appelé par `Tests::executer` : ils couvrent les allers-retours lecture/écriture, les cas d'erreur de fichier, le mode console, le nettoyage ciblé des anciens `iteration_N.txt` et la préservation des autres fichiers. `TestsExtensions` est intégré de façon inconditionnelle : son en-tête est inclus, son fichier source est compilé par le `Makefile` et `TestsExtensions::executer` est appelé par `Tests::executer` ; il couvre le repli torique horizontal, vertical et de coin, les petites grilles 1x1 et 1xN, les obstacles figés mais comptés comme voisines, la bascule d'obstacle, l'effacement, la réinitialisation et la copie indépendante des états et obstacles. Le programme renvoie 0 si tous les tests réussissent, sinon 1.
+`Tests::verifierGrille` reçoit une grille initiale, une grille attendue et un nombre arbitraire d'itérations ; il s'arrête dès que la stabilité est détectée. Les scénarios métier vérifient un clignotant après une et deux itérations, ainsi que le scénario `le bloc reste stable lors d'une demande de cinq itérations`. Les tests de fichiers et de console sont regroupés dans `TestsFichiers::executer`, appelé par `Tests::executer` : ils couvrent les allers-retours lecture/écriture (dont matrices non carrées), les formats valides en CRLF ou sans saut de ligne final, le mode console, le nettoyage ciblé des anciens `iteration_N.txt` et la préservation des autres fichiers, ainsi que les rejets motivés : fichier vide, en-tête partiel, dimensions nulles ou négatives, données en trop, valeur texte ou flottante. `TestsExtensions` est intégré de façon inconditionnelle : son en-tête est inclus, son fichier source est compilé par le `Makefile` et `TestsExtensions::executer` est appelé par `Tests::executer` ; il couvre le repli torique horizontal, vertical et de coin, le tore 2x2 avec ses multiplicités modulo, les petites grilles 1x1 et 1xN, les obstacles figés mais comptés comme voisines, l'obstacle de bord torique, les accès aux obstacles hors bornes sans modification, la bascule d'obstacle et du tore, l'effacement, la réinitialisation, le contrat de `aMemesEtats`, la copie indépendante des états et obstacles, ainsi qu'un planeur sur une grille 200x200 qui exerce le chemin des grandes grilles (parallèle si plusieurs cœurs sont disponibles). Le programme renvoie 0 si tous les tests réussissent, sinon 1.
 
 ## Organisation du code
 
 - `Jeu` contrôle les itérations, détecte la stabilité et gère les éditions, le tore, les obstacles, l'effacement et la réinitialisation.
-- `Grille` compte les voisines (avec repli torique optionnel), applique simultanément les nouveaux états et gère les obstacles.
+- `Grille` compte les voisines (avec repli torique optionnel), applique simultanément les nouveaux états, gère les obstacles et parallélise le calcul des grandes générations.
 - `Cellule` possède un `EtatCellule` polymorphe (`EtatVivant` ou `EtatMort`) et un drapeau d'obstacle copié avec la cellule.
 - `Motif` représente une forme rectangulaire et fournit les quatre motifs prédéfinis.
 - `RegleConway` applique les règles via l'interface abstraite `Regle`, indépendante des états.
 - `FichierGrille` isole la lecture et l'écriture des fichiers ; le format texte ne contient que les états 0/1.
 - `ModeConsole` et `ModeGraphique` utilisent le modèle sans modifier ses règles ; le mode graphique s'appuie sur SFML et propose l'édition interactive, la bascule du tore et l'outil Obstacle.
 - `Tests` vérifie le modèle et appelle `TestsFichiers`, qui isole les tests de fichiers et de mode console, ainsi que `TestsExtensions`.
-- `TestsExtensions` vérifie le tore, les obstacles, leur réinitialisation et la copie indépendante des cellules.
+- `TestsExtensions` vérifie le tore, les obstacles, leur réinitialisation, la copie indépendante des cellules et une grande grille parallèle.
 
-Les diagrammes demandés se trouvent dans [CONCEPTION.md](CONCEPTION.md). La grille torique et les obstacles sont désormais implémentés dans le mode graphique ; seule la parallélisation reste une extension optionnelle non réalisée.
+Les diagrammes demandés se trouvent dans [CONCEPTION.md](CONCEPTION.md). Les quatre extensions bonus du sujet — grille torique, obstacles, motifs et parallélisation — sont implémentées.
